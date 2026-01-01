@@ -1,0 +1,19 @@
+{
+  "name": "qa",
+  "production": false,
+  "apiUrl": "https://api-qa.yourapp.com/api",
+  "apiTimeout": 30000,
+  "authUrl": "https://auth-qa.yourapp.com/auth",
+  "authTokenKey": "qa_auth_token",
+  "features": {
+    "enableNewCheckout": true,
+    "enableAnalytics": false,
+    "enableLogging": true
+  },
+  "analytics": {
+    "googleAnalyticsId": "UA-XXXXXXXX-QA",
+    "enableTracking": false
+  },
+  "cacheTimeout": 300,
+  "retryAttempts": 3
+}

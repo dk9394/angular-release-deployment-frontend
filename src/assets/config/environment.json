@@ -1,0 +1,18 @@
+{
+  "name": "development",
+  "production": false,
+  "apiUrl": "http://localhost:3000/api",
+  "apiTimeout": 30000,
+  "authUrl": "http://localhost:3000/auth",
+  "authTokenKey": "dev_auth_token",
+  "features": {
+    "enableNewCheckout": true,
+    "enableAnalytics": false,
+    "enableLogging": true
+  },
+  "analytics": {
+    "enableTracking": false
+  },
+  "cacheTimeout": 60,
+  "retryAttempts": 3
+}

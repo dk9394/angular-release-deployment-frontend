@@ -1,0 +1,41 @@
+<div class="app-container">
+  <header class="app-header">
+    <h1>{{ title() }}</h1>
+    <div class="environment-info">
+      <span class="env-badge" [class.production]="isProduction()">
+        {{ environment().toUpperCase() }}
+      </span>
+    </div>
+  </header>
+
+  <main class="app-content">
+    <section class="config-display">
+      <h2>Runtime Configuration</h2>
+      <div class="config-item">
+        <strong>Environment:</strong>
+        <span>{{ environment() }}</span>
+      </div>
+      <div class="config-item">
+        <strong>API URL:</strong>
+        <span>{{ apiUrl() }}</span>
+      </div>
+      <div class="config-item">
+        <strong>Production Mode:</strong>
+        <span>{{ isProduction() ? 'Yes' : 'No' }}</span>
+      </div>
+    </section>
+
+    <section class="info-section">
+      <h2>What This Demonstrates</h2>
+      <ul>
+        <li>✅ Runtime configuration loading (not build-time)</li>
+        <li>✅ Same build deployed to all environments</li>
+        <li>✅ Configuration loaded before app starts (APP_INITIALIZER)</li>
+        <li>✅ Type-safe access to configuration</li>
+        <li>✅ Configuration validation on startup</li>
+      </ul>
+    </section>
+
+    <router-outlet />
+  </main>
+</div>

@@ -1,0 +1,19 @@
+{
+  "name": "staging",
+  "production": false,
+  "apiUrl": "https://api-staging.yourapp.com/api",
+  "apiTimeout": 20000,
+  "authUrl": "https://auth-staging.yourapp.com/auth",
+  "authTokenKey": "staging_auth_token",
+  "features": {
+    "enableNewCheckout": false,
+    "enableAnalytics": true,
+    "enableLogging": true
+  },
+  "analytics": {
+    "googleAnalyticsId": "UA-XXXXXXXX-STAGING",
+    "enableTracking": true
+  },
+  "cacheTimeout": 600,
+  "retryAttempts": 2
+}

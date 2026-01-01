@@ -1,0 +1,105 @@
+.app-container {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.app-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 30px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  h1 {
+    margin: 0;
+    font-size: 2rem;
+  }
+}
+
+.environment-info {
+  .env-badge {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9rem;
+
+    &.production {
+      background: #ef4444;
+      animation: pulse 2s infinite;
+    }
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.app-content {
+  display: grid;
+  gap: 20px;
+}
+
+.config-display,
+.info-section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  h2 {
+    margin-top: 0;
+    color: #1f2937;
+    border-bottom: 2px solid #667eea;
+    padding-bottom: 10px;
+  }
+}
+
+.config-item {
+  display: flex;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  strong {
+    min-width: 150px;
+    color: #6b7280;
+  }
+
+  span {
+    color: #1f2937;
+    font-family: 'Monaco', 'Courier New', monospace;
+    background: #f9fafb;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+}
+
+.info-section {
+  ul {
+    list-style: none;
+    padding: 0;
+
+    li {
+      padding: 8px 0;
+      color: #4b5563;
+      font-size: 0.95rem;
+    }
+  }
+}
