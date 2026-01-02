@@ -11,7 +11,21 @@
     "format": "prettier --write \"src/**/*.{ts,html,scss,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,html,scss,css,json}\"",
     "lint:fix": "ng lint --fix",
-    "prepare": "husky"
+    "prepare": "husky",
+    "//": "─────────────────────────────────────────────────────────────────────",
+    "// Deployment Scripts": "For local emergency deployments only",
+    "// NOTE": "Production deployments should use GitHub Actions (Phase 5)",
+    "//  ": "─────────────────────────────────────────────────────────────────────",
+    "deploy": "npm run deploy:dev",
+    "deploy:help": "echo '\n📦 Available deployment commands:\n\n  Bash scripts (Mac/Linux):\n    npm run deploy:dev      → Deploy to development\n    npm run deploy:qa       → Deploy to QA\n    npm run deploy:staging  → Deploy to staging\n    npm run deploy:prod     → Deploy to production\n\n  Node.js scripts (Cross-platform):\n    npm run deploy:dev:node      → Deploy to development\n    npm run deploy:qa:node       → Deploy to QA\n    npm run deploy:staging:node  → Deploy to staging\n    npm run deploy:prod:node     → Deploy to production\n\n  ⚠️  Use these only for emergency manual deployments!\n  ✅ Production deployments should use GitHub Actions\n'",
+    "deploy:dev": "./deploy.sh dev",
+    "deploy:qa": "./deploy.sh qa",
+    "deploy:staging": "./deploy.sh staging",
+    "deploy:prod": "./deploy.sh prod",
+    "deploy:dev:node": "node deploy.mjs dev",
+    "deploy:qa:node": "node deploy.mjs qa",
+    "deploy:staging:node": "node deploy.mjs staging",
+    "deploy:prod:node": "node deploy.mjs prod"
   },
   "prettier": {
     "printWidth": 100,
