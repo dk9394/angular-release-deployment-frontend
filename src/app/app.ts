@@ -16,6 +16,7 @@ export class App {
   constructor(private configService: ConfigService) {
     // Configuration is already loaded by APP_INITIALIZER
     const config = this.configService.getConfig();
+    console.warn('Current Environment: ', config.name);
     this.environment.set(config.name);
     this.apiUrl.set(config.apiUrl);
     this.isProduction.set(config.production);
