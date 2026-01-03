@@ -9,6 +9,7 @@
 ## Overview
 
 This project implements comprehensive performance monitoring using:
+
 1. **Web Vitals** - Real user performance tracking
 2. **Lighthouse CI** - Automated performance testing in CI/CD
 
@@ -36,17 +37,20 @@ Google's official metrics for measuring user experience:
 **What it measures:** Loading performance - when main content appears
 
 **Thresholds:**
+
 - ✅ Good: < 2.5 seconds
 - ⚠️ Needs Improvement: 2.5s - 4s
 - ❌ Poor: > 4 seconds
 
 **What counts as LCP:**
+
 - Large images
 - Video thumbnails
 - Block-level elements with background images
 - Text blocks
 
 **How to improve:**
+
 - Optimize images (WebP, compression, lazy loading)
 - Use CDN for assets
 - Preload critical resources
@@ -59,16 +63,19 @@ Google's official metrics for measuring user experience:
 **What it measures:** Interactivity - time between user action and visual response
 
 **Thresholds:**
+
 - ✅ Good: < 200 milliseconds
 - ⚠️ Needs Improvement: 200ms - 500ms
 - ❌ Poor: > 500 milliseconds
 
 **What counts:**
+
 - Button clicks
 - Form inputs
 - Menu interactions
 
 **How to improve:**
+
 - Reduce JavaScript execution time
 - Break up long tasks
 - Use web workers for heavy computation
@@ -81,17 +88,20 @@ Google's official metrics for measuring user experience:
 **What it measures:** Visual stability - unexpected layout shifts
 
 **Thresholds:**
+
 - ✅ Good: < 0.1
 - ⚠️ Needs Improvement: 0.1 - 0.25
 - ❌ Poor: > 0.25
 
 **Common causes:**
+
 - Images without dimensions
 - Ads/embeds/iframes without reserved space
 - Dynamically injected content
 - Web fonts causing FOIT/FOUT
 
 **How to improve:**
+
 - Set explicit width/height for images
 - Reserve space for dynamic content
 - Use `font-display: swap` for web fonts
@@ -104,11 +114,13 @@ Google's official metrics for measuring user experience:
 **What it measures:** When first content appears (any content)
 
 **Thresholds:**
+
 - ✅ Good: < 1.8 seconds
 - ⚠️ Needs Improvement: 1.8s - 3s
 - ❌ Poor: > 3 seconds
 
 **How to improve:**
+
 - Eliminate render-blocking resources
 - Minify CSS and JavaScript
 - Remove unused CSS
@@ -121,11 +133,13 @@ Google's official metrics for measuring user experience:
 **What it measures:** Server response time
 
 **Thresholds:**
+
 - ✅ Good: < 800 milliseconds
 - ⚠️ Needs Improvement: 800ms - 1.8s
 - ❌ Poor: > 1.8 seconds
 
 **How to improve:**
+
 - Use CDN (CloudFront for S3)
 - Optimize server processing
 - Use HTTP/2 or HTTP/3
@@ -159,6 +173,7 @@ export class PerformanceService {
 ### Viewing Metrics
 
 **Development:**
+
 ```bash
 npm start
 # Open http://localhost:4200
@@ -167,6 +182,7 @@ npm start
 ```
 
 **Example Output:**
+
 ```
 [Performance] LCP: 1.8s ✅ (good)
 [Performance] INP: 120ms ✅ (good)
@@ -182,6 +198,7 @@ npm start
 ### What is Lighthouse?
 
 Automated tool that audits:
+
 - **Performance** (speed)
 - **Accessibility** (usability for disabled users)
 - **Best Practices** (web standards)
@@ -193,6 +210,7 @@ Each category scored 0-100.
 ### How Lighthouse CI Works
 
 **On Every PR:**
+
 1. GitHub Actions triggers
 2. Builds Angular app
 3. Serves app locally
@@ -213,9 +231,9 @@ Each category scored 0-100.
     },
     "assert": {
       "assertions": {
-        "categories:performance": ["error", {"minScore": 0.9}],
-        "largest-contentful-paint": ["error", {"maxNumericValue": 2500}],
-        "cumulative-layout-shift": ["error", {"maxNumericValue": 0.1}]
+        "categories:performance": ["error", { "minScore": 0.9 }],
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
       }
     }
   }
@@ -234,21 +252,22 @@ Each category scored 0-100.
 
 ### Current Budgets
 
-| Metric | Budget | Level |
-|--------|--------|-------|
-| **Performance Score** | ≥ 90 | Error |
-| **LCP** | ≤ 2.5s | Error |
-| **FCP** | ≤ 1.8s | Error |
-| **CLS** | ≤ 0.1 | Error |
-| **TBT** (Total Blocking Time) | ≤ 300ms | Warn |
-| **JavaScript Bundle** | ≤ 500 KB | Error |
-| **CSS Bundle** | ≤ 50 KB | Warn |
-| **Images** | ≤ 500 KB | Warn |
-| **Total Size** | ≤ 1 MB | Warn |
+| Metric                        | Budget   | Level |
+| ----------------------------- | -------- | ----- |
+| **Performance Score**         | ≥ 90     | Error |
+| **LCP**                       | ≤ 2.5s   | Error |
+| **FCP**                       | ≤ 1.8s   | Error |
+| **CLS**                       | ≤ 0.1    | Error |
+| **TBT** (Total Blocking Time) | ≤ 300ms  | Warn  |
+| **JavaScript Bundle**         | ≤ 500 KB | Error |
+| **CSS Bundle**                | ≤ 50 KB  | Warn  |
+| **Images**                    | ≤ 500 KB | Warn  |
+| **Total Size**                | ≤ 1 MB   | Warn  |
 
 ### Why Budgets Matter
 
 **Without Budgets:**
+
 ```
 PR #1: Add library (+100KB) → Merged
 PR #2: Add images (+200KB) → Merged
@@ -257,6 +276,7 @@ Result: App slow, users complain
 ```
 
 **With Budgets:**
+
 ```
 PR #1: Add library (+100KB)
   → Lighthouse: ❌ Bundle size 600KB (budget: 500KB)
@@ -279,12 +299,14 @@ PR #1: Add library (+100KB)
 ### Report Structure
 
 **Performance Category:**
+
 - Overall score (0-100)
 - Metrics (LCP, FCP, CLS, etc.)
 - Opportunities (what to fix)
 - Diagnostics (why it's slow)
 
 **Example Opportunities:**
+
 ```
 🔴 Properly size images - Save 450 KB
 🟡 Minify JavaScript - Save 125 KB
@@ -293,11 +315,11 @@ PR #1: Add library (+100KB)
 
 ### Understanding Scores
 
-| Score | Rating | Color | Meaning |
-|-------|--------|-------|---------|
-| 90-100 | Fast | 🟢 Green | Excellent |
-| 50-89 | Average | 🟡 Orange | Needs work |
-| 0-49 | Slow | 🔴 Red | Poor |
+| Score  | Rating  | Color     | Meaning    |
+| ------ | ------- | --------- | ---------- |
+| 90-100 | Fast    | 🟢 Green  | Excellent  |
+| 50-89  | Average | 🟡 Orange | Needs work |
+| 0-49   | Slow    | 🔴 Red    | Poor       |
 
 ---
 
@@ -308,11 +330,13 @@ PR #1: Add library (+100KB)
 **Symptom:** JS bundle > 500KB
 
 **Causes:**
+
 - Importing entire libraries
 - No code splitting
 - No tree shaking
 
 **Fixes:**
+
 ```typescript
 // ❌ Bad: Imports entire library (500KB)
 import * as _ from 'lodash';
@@ -322,6 +346,7 @@ import { uniq } from 'lodash-es';
 ```
 
 **Tools:**
+
 ```bash
 # Analyze bundle
 npm install -D webpack-bundle-analyzer
@@ -336,20 +361,22 @@ npx webpack-bundle-analyzer dist/stats.json
 **Symptom:** LCP > 2.5s, large image sizes
 
 **Fixes:**
+
 - Use WebP format
 - Compress images (TinyPNG, ImageOptim)
 - Use `srcset` for responsive images
 - Lazy load off-screen images
 
 **Example:**
+
 ```html
 <!-- ❌ Bad: Large PNG -->
-<img src="hero.png" alt="Hero">
+<img src="hero.png" alt="Hero" />
 
 <!-- ✅ Good: Optimized WebP with fallback -->
 <picture>
-  <source srcset="hero.webp" type="image/webp">
-  <img src="hero.jpg" alt="Hero" width="800" height="600">
+  <source srcset="hero.webp" type="image/webp" />
+  <img src="hero.jpg" alt="Hero" width="800" height="600" />
 </picture>
 ```
 
@@ -360,19 +387,21 @@ npx webpack-bundle-analyzer dist/stats.json
 **Symptom:** FCP > 1.8s
 
 **Causes:**
+
 - Synchronous CSS/JS in `<head>`
 - Large CSS files
 - External fonts
 
 **Fixes:**
+
 ```html
 <!-- ❌ Bad: Blocks rendering -->
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css" />
 
 <!-- ✅ Good: Preload critical CSS -->
-<link rel="preload" href="critical.css" as="style">
-<link rel="stylesheet" href="critical.css">
-<link rel="stylesheet" href="non-critical.css" media="print" onload="this.media='all'">
+<link rel="preload" href="critical.css" as="style" />
+<link rel="stylesheet" href="critical.css" />
+<link rel="stylesheet" href="non-critical.css" media="print" onload="this.media='all'" />
 ```
 
 ---
@@ -382,17 +411,19 @@ npx webpack-bundle-analyzer dist/stats.json
 **Symptom:** CLS > 0.1
 
 **Causes:**
+
 - Images without dimensions
 - Dynamic content insertion
 - Web fonts loading
 
 **Fixes:**
+
 ```html
 <!-- ❌ Bad: No dimensions -->
-<img src="product.jpg" alt="Product">
+<img src="product.jpg" alt="Product" />
 
 <!-- ✅ Good: Explicit dimensions -->
-<img src="product.jpg" alt="Product" width="400" height="300">
+<img src="product.jpg" alt="Product" width="400" height="300" />
 ```
 
 ```css
@@ -416,25 +447,28 @@ npx webpack-bundle-analyzer dist/stats.json
 ### Angular-Specific
 
 **1. Lazy Loading:**
+
 ```typescript
 // app-routing.module.ts
 const routes: Routes = [
   {
     path: 'products',
-    loadChildren: () => import('./products/products.module').then(m => m.ProductsModule)
-  }
+    loadChildren: () => import('./products/products.module').then((m) => m.ProductsModule),
+  },
 ];
 ```
 
 **2. OnPush Change Detection:**
+
 ```typescript
 @Component({
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProductComponent {}
 ```
 
-**3. TrackBy in *ngFor:**
+**3. TrackBy in \*ngFor:**
+
 ```typescript
 <div *ngFor="let item of items; trackBy: trackByFn">
   {{ item.name }}
@@ -450,6 +484,7 @@ trackByFn(index: number, item: Product): number {
 ### Build Optimization
 
 **Angular.json Configuration:**
+
 ```json
 {
   "projects": {
@@ -483,6 +518,7 @@ trackByFn(index: number, item: Product): number {
 **Issue**: Performance score below 90
 
 **Steps**:
+
 1. Download lighthouse-reports artifact
 2. Open HTML report
 3. Check "Opportunities" section
@@ -496,6 +532,7 @@ trackByFn(index: number, item: Product): number {
 **Issue**: No console logs in development
 
 **Checks**:
+
 1. Verify web-vitals installed: `npm list web-vitals`
 2. Check PerformanceService initialized in AppComponent
 3. Open browser console (F12)
@@ -509,6 +546,7 @@ trackByFn(index: number, item: Product): number {
 **Issue**: Bundle exceeds 500KB
 
 **Analysis**:
+
 ```bash
 # Build with source maps
 npm run build -- --source-map
@@ -518,6 +556,7 @@ npx source-map-explorer dist/**/*.js
 ```
 
 **Common Culprits**:
+
 - RxJS operators (use pipeable operators)
 - Moment.js (replace with date-fns)
 - Lodash (use lodash-es)
@@ -528,6 +567,7 @@ npx source-map-explorer dist/**/*.js
 ## Next Steps
 
 **Phase 9: Security Hardening** (Coming Next)
+
 - HTTPS & SSL certificates
 - Content Security Policy
 - Authentication (AWS Cognito)
