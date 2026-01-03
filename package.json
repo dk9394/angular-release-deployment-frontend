@@ -28,6 +28,11 @@
     "deploy:staging:node": "node deploy.mjs staging",
     "deploy:prod:node": "node deploy.mjs prod"
   },
+  "sideEffects": [
+    "**/*.css",
+    "**/*.scss",
+    "src/polyfills.ts"
+  ],
   "prettier": {
     "printWidth": 100,
     "singleQuote": true,
