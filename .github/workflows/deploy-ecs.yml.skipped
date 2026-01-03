@@ -1,0 +1,545 @@
+# ============================================================================
+# GITHUB ACTIONS WORKFLOW - AWS ECS DEPLOYMENT (DOCKER CONTAINERS)
+# ============================================================================
+#
+# PURPOSE:
+# This workflow automates the deployment of the Angular frontend Docker
+# container to AWS ECS (Elastic Container Service) across multiple environments.
+#
+# WORKFLOW OVERVIEW:
+# 1. Build Docker image for Angular app
+# 2. Push image to AWS ECR (Elastic Container Registry)
+# 3. Deploy to ECS using Fargate
+# 4. Update ECS service with new task definition
+#
+# ENVIRONMENTS SUPPORTED:
+# - Development (develop branch → dev ECS cluster)
+# - QA (manual trigger → qa ECS cluster)
+# - Staging (staging branch → staging ECS cluster)
+# - Production (main branch → prod ECS cluster, requires approval)
+#
+# MENTAL MODEL - DEPLOYMENT FLOW:
+#
+# Code Push → GitHub Actions → Build Docker Image → Push to ECR → Deploy to ECS
+#     ↓              ↓                  ↓                ↓              ↓
+#  Git Repo    Lint/Test/Build    Multi-stage      Store Image    Run Container
+#                                   Dockerfile      in Registry    on Fargate
+#
+# WHY ECS INSTEAD OF S3:
+# - S3: Static files only (our current serverless approach)
+# - ECS: Full containerized apps (Docker images)
+# - ECS Benefits: Scalability, load balancing, health checks, service mesh
+#
+# COST NOTE:
+# - ECR: Free for < 500MB storage
+# - ECS Service: Free (just the orchestrator)
+# - Fargate Compute: ~$30/month per environment (NOT free tier eligible)
+# - Recommendation: Use for learning/testing, then tear down
+#
+# ============================================================================
+
+name: Deploy to AWS ECS (Docker)
+
+# ============================================================================
+# TRIGGER CONDITIONS
+# ============================================================================
+#
+# This workflow runs on:
+# 1. Push to develop/staging/main branches (automatic deployment)
+# 2. Pull requests to these branches (build & test only, no deployment)
+# 3. Manual trigger via workflow_dispatch (for QA environment)
+#
+on:
+  push:
+    branches:
+      - develop    # Auto-deploy to Development ECS
+      - staging    # Auto-deploy to Staging ECS
+      - main       # Auto-deploy to Production ECS (with approval)
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/workflows/deploy-s3.yml'  # Ignore S3 workflow changes
+
+  pull_request:
+    branches:
+      - develop
+      - staging
+      - main
+    # Pull requests: Build & test only, no deployment
+
+  workflow_dispatch:
+    # Manual trigger for QA environment
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'qa'
+        type: choice
+        options:
+          - qa
+          - development
+          - staging
+          - production
+
+# ============================================================================
+# ENVIRONMENT VARIABLES (GLOBAL)
+# ============================================================================
+#
+# These variables are available to all jobs
+# They define AWS resources and configuration
+#
+env:
+  # AWS Configuration
+  AWS_REGION: us-east-1
+
+  # ECR Repository (where Docker images are stored)
+  ECR_REPOSITORY: angular-frontend
+
+  # ECS Configuration
+  ECS_CLUSTER_PREFIX: angular-app
+  ECS_SERVICE_PREFIX: frontend-service
+  ECS_TASK_FAMILY: frontend-task
+
+  # Container Configuration
+  CONTAINER_NAME: angular-frontend
+  CONTAINER_PORT: 80
+
+# ============================================================================
+# JOBS
+# ============================================================================
+
+jobs:
+  # ==========================================================================
+  # JOB 1: BUILD AND TEST
+  # ==========================================================================
+  #
+  # Runs for all triggers (push, PR, manual)
+  # Purpose: Quality gate before deployment
+  #
+  build-and-test:
+    name: Build & Test Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      # ----------------------------------------------------------------------
+      # Checkout Code
+      # ----------------------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ----------------------------------------------------------------------
+      # Set up Node.js (for local testing before Docker build)
+      # ----------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ----------------------------------------------------------------------
+      # Install Dependencies (for linting and testing)
+      # ----------------------------------------------------------------------
+      - name: Install dependencies
+        run: npm ci
+
+      # ----------------------------------------------------------------------
+      # Run Linter
+      # ----------------------------------------------------------------------
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: false
+
+      # ----------------------------------------------------------------------
+      # Run Tests
+      # ----------------------------------------------------------------------
+      - name: Run Tests
+        run: npm run test:ci
+        continue-on-error: false
+
+      # ----------------------------------------------------------------------
+      # Build Docker Image (Test Build)
+      # ----------------------------------------------------------------------
+      #
+      # Build the Docker image to ensure Dockerfile is valid
+      # Tag with commit SHA for traceability
+      #
+      - name: Build Docker Image (Test)
+        run: |
+          docker build \
+            -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
+            -t ${{ env.ECR_REPOSITORY }}:latest \
+            -f Dockerfile \
+            .
+
+      # ----------------------------------------------------------------------
+      # Test Docker Image
+      # ----------------------------------------------------------------------
+      #
+      # Run the container and verify it starts successfully
+      #
+      - name: Test Docker Container
+        run: |
+          # Start container in background
+          docker run -d -p 8080:80 --name test-container ${{ env.ECR_REPOSITORY }}:latest
+
+          # Wait for container to be ready
+          sleep 5
+
+          # Check if container is running
+          docker ps | grep test-container
+
+          # Test HTTP response
+          curl -f http://localhost:8080 || exit 1
+
+          # Cleanup
+          docker stop test-container
+          docker rm test-container
+
+  # ==========================================================================
+  # JOB 2: DETERMINE ENVIRONMENT
+  # ==========================================================================
+  #
+  # Figures out which environment to deploy to based on:
+  # - Branch name (for push events)
+  # - Manual input (for workflow_dispatch)
+  #
+  determine-environment:
+    name: Determine Deployment Environment
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name != 'pull_request'
+
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      deploy: ${{ steps.set-env.outputs.deploy }}
+
+    steps:
+      - name: Determine Environment
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger: Use input
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            DEPLOY="true"
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            ENVIRONMENT="development"
+            DEPLOY="true"
+          elif [ "${{ github.ref }}" == "refs/heads/staging" ]; then
+            ENVIRONMENT="staging"
+            DEPLOY="true"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ENVIRONMENT="production"
+            DEPLOY="true"
+          else
+            ENVIRONMENT="none"
+            DEPLOY="false"
+          fi
+
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "deploy=$DEPLOY" >> $GITHUB_OUTPUT
+          echo "Deploying to: $ENVIRONMENT"
+
+  # ==========================================================================
+  # JOB 3: DEPLOY TO DEVELOPMENT
+  # ==========================================================================
+  deploy-development:
+    name: Deploy to Development ECS
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: needs.determine-environment.outputs.environment == 'development'
+
+    environment:
+      name: development
+      url: http://dev-frontend-alb-12345678.us-east-1.elb.amazonaws.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: dev-${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest
+          echo "IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Update ECS Task Definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: .aws/task-definition-dev.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.IMAGE }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE_PREFIX }}-dev
+          cluster: ${{ env.ECS_CLUSTER_PREFIX }}-dev
+          wait-for-service-stability: true
+
+  # ==========================================================================
+  # JOB 4: DEPLOY TO QA
+  # ==========================================================================
+  deploy-qa:
+    name: Deploy to QA ECS
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: needs.determine-environment.outputs.environment == 'qa'
+
+    environment:
+      name: qa
+      url: http://qa-frontend-alb-12345678.us-east-1.elb.amazonaws.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: qa-${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:qa-latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:qa-latest
+          echo "IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Update ECS Task Definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: .aws/task-definition-qa.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.IMAGE }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE_PREFIX }}-qa
+          cluster: ${{ env.ECS_CLUSTER_PREFIX }}-qa
+          wait-for-service-stability: true
+
+  # ==========================================================================
+  # JOB 5: DEPLOY TO STAGING
+  # ==========================================================================
+  deploy-staging:
+    name: Deploy to Staging ECS
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: needs.determine-environment.outputs.environment == 'staging'
+
+    environment:
+      name: staging
+      url: http://staging-frontend-alb-12345678.us-east-1.elb.amazonaws.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: staging-${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:staging-latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:staging-latest
+          echo "IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Update ECS Task Definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: .aws/task-definition-staging.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.IMAGE }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE_PREFIX }}-staging
+          cluster: ${{ env.ECS_CLUSTER_PREFIX }}-staging
+          wait-for-service-stability: true
+
+  # ==========================================================================
+  # JOB 6: DEPLOY TO PRODUCTION
+  # ==========================================================================
+  deploy-production:
+    name: Deploy to Production ECS
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: needs.determine-environment.outputs.environment == 'production'
+
+    environment:
+      name: production
+      url: http://prod-frontend-alb-12345678.us-east-1.elb.amazonaws.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: prod-${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:prod-latest
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:prod-latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Update ECS Task Definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: .aws/task-definition-prod.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.IMAGE }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE_PREFIX }}-prod
+          cluster: ${{ env.ECS_CLUSTER_PREFIX }}-prod
+          wait-for-service-stability: true
+
+# ============================================================================
+# USAGE INSTRUCTIONS
+# ============================================================================
+#
+# AUTOMATIC DEPLOYMENTS:
+# - Push to `develop` → Deploys to Development ECS
+# - Push to `staging` → Deploys to Staging ECS
+# - Push to `main` → Deploys to Production ECS (requires GitHub approval)
+#
+# MANUAL QA DEPLOYMENT:
+# 1. Go to: GitHub → Actions → "Deploy to AWS ECS (Docker)"
+# 2. Click: "Run workflow"
+# 3. Select branch and environment: "qa"
+# 4. Click: "Run workflow"
+#
+# PULL REQUESTS:
+# - Creates PR → Runs build & test only (no deployment)
+# - Quality gate before merging
+#
+# ============================================================================
+# PREREQUISITES (TO BE SET UP)
+# ============================================================================
+#
+# 1. AWS ECR Repository:
+#    - Create ECR repository: `angular-frontend`
+#    - Region: us-east-1
+#
+# 2. ECS Clusters (one per environment):
+#    - angular-app-dev
+#    - angular-app-qa
+#    - angular-app-staging
+#    - angular-app-prod
+#
+# 3. ECS Services (one per environment):
+#    - frontend-service-dev
+#    - frontend-service-qa
+#    - frontend-service-staging
+#    - frontend-service-prod
+#
+# 4. Task Definitions (in .aws/ folder):
+#    - task-definition-dev.json
+#    - task-definition-qa.json
+#    - task-definition-staging.json
+#    - task-definition-prod.json
+#
+# 5. Application Load Balancers (one per environment)
+#
+# 6. GitHub Secrets:
+#    - AWS_ACCESS_KEY_ID
+#    - AWS_SECRET_ACCESS_KEY
+#
+# 7. GitHub Environments:
+#    - development (no approval required)
+#    - qa (no approval required)
+#    - staging (no approval required)
+#    - production (requires approval)
+#
+# ============================================================================
+# FUTURE ENHANCEMENTS
+# ============================================================================
+#
+# 1. Blue-Green Deployments:
+#    - Deploy to new task, test, then switch traffic
+#    - Zero-downtime deployments
+#
+# 2. Canary Deployments:
+#    - Gradually shift traffic (10% → 50% → 100%)
+#    - Monitor metrics before full rollout
+#
+# 3. Automated Rollback:
+#    - Monitor health checks
+#    - Auto-rollback on failure
+#
+# 4. Multi-Region Deployment:
+#    - Deploy to multiple AWS regions
+#    - Global load balancing
+#
+# 5. Cost Optimization:
+#    - Use Fargate Spot for non-prod environments
+#    - Auto-scaling based on traffic
+#
+# ============================================================================

@@ -1,0 +1,219 @@
+# ============================================================================
+# DOCKER IGNORE FILE FOR ANGULAR APPLICATION
+# ============================================================================
+#
+# PURPOSE:
+# This file tells Docker which files and folders to exclude when building
+# the Docker image. It works exactly like .gitignore but for Docker builds.
+#
+# MENTAL MODEL:
+# Think of Docker build context as "packing a suitcase for deployment":
+# - You need: Source code, package.json (essentials)
+# - You DON'T need: node_modules, .git, test files (unnecessary weight)
+# - .dockerignore = checklist of "leave these at home"
+#
+# WHY THIS MATTERS:
+# 1. Faster Builds: Less data to send to Docker daemon
+#    - WITH node_modules: ~500MB to transfer → 2-3 minutes
+#    - WITHOUT node_modules: ~5MB to transfer → 5-10 seconds
+#
+# 2. Smaller Images: Less junk in final image
+#    - Only include what's needed for production
+#
+# 3. Security: Don't accidentally include secrets
+#    - .env files, .git history with sensitive data
+#
+# 4. Correct Dependencies: Force npm install inside container
+#    - Your local node_modules might be for different OS (Mac/Windows)
+#    - Container node_modules should be built for Linux
+#
+# EXAMPLE BUILD FLOW:
+# 1. Docker reads .dockerignore
+# 2. Docker copies ONLY non-ignored files to build context
+# 3. Dockerfile runs: COPY package*.json ./ (gets package.json, NOT node_modules)
+# 4. Dockerfile runs: RUN npm ci (installs fresh Linux-compatible dependencies)
+#
+# ============================================================================
+
+# ============================================================================
+# NODE.JS DEPENDENCIES
+# ============================================================================
+#
+# WHY IGNORE: We'll run `npm ci` inside the Docker container
+# REASON: Local node_modules might be built for different OS/architecture
+# RESULT: Container gets fresh, Linux-specific dependencies
+#
+# CRITICAL: Do NOT ignore package-lock.json - npm ci requires it!
+#
+node_modules
+npm-debug.log
+yarn-error.log
+
+# ============================================================================
+# BUILD OUTPUT
+# ============================================================================
+#
+# WHY IGNORE: We'll build the Angular app inside the Docker container
+# REASON: Local dist/ might have wrong base-href or environment configs
+# RESULT: Container builds fresh production-optimized bundle
+#
+dist
+build
+.angular
+
+# ============================================================================
+# VERSION CONTROL
+# ============================================================================
+#
+# WHY IGNORE: Git history is not needed in production container
+# SIZE IMPACT: .git folder can be 100MB+ for large projects
+# SECURITY: Git history might contain accidentally committed secrets
+#
+.git
+.gitignore
+.github
+
+# ============================================================================
+# IDE AND EDITOR FILES
+# ============================================================================
+#
+# WHY IGNORE: Your editor settings are not needed to run the app
+# EXAMPLES:
+# - .vscode = VSCode workspace settings
+# - .idea = WebStorm/IntelliJ settings
+# - *.swp = Vim temporary files
+#
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ============================================================================
+# ENVIRONMENT AND SECRET FILES
+# ============================================================================
+#
+# WHY IGNORE: Critical for security
+# DANGER: .env files often contain API keys, database passwords
+# SOLUTION: Use environment variables or secrets management instead
+# BEST PRACTICE: Never bake secrets into Docker images
+#
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# ============================================================================
+# TESTING AND COVERAGE
+# ============================================================================
+#
+# WHY IGNORE: Test files and coverage reports not needed in production
+# SIZE IMPACT: Coverage reports can be 10-50MB
+# RESULT: Smaller, cleaner production image
+#
+coverage
+*.spec.ts
+*.test.ts
+e2e
+karma.conf.js
+jest.config.js
+
+# ============================================================================
+# DOCUMENTATION
+# ============================================================================
+#
+# WHY IGNORE: README and docs are for developers, not runtime
+# EXCEPTION: If your app serves docs at runtime, don't ignore them
+#
+README.md
+CHANGELOG.md
+docs
+
+# ============================================================================
+# CI/CD FILES
+# ============================================================================
+#
+# WHY IGNORE: GitHub Actions workflows not needed in container
+# THESE FILES: Define how to build/test/deploy, but aren't part of the app
+#
+.github
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
+
+# ============================================================================
+# DOCKER FILES (META)
+# ============================================================================
+#
+# WHY IGNORE: Dockerfile is instructions for building, not part of the app
+# ANALOGY: Recipe card (Dockerfile) vs. the actual cake (container)
+# EXCEPTION: docker-compose.yml for local dev might be needed for multi-stage
+#
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# ============================================================================
+# LOGS AND TEMPORARY FILES
+# ============================================================================
+#
+# WHY IGNORE: Runtime logs and temp files from local development
+# THESE SHOULD NOT: Be baked into the image
+# LOGS IN CONTAINER: Should go to stdout/stderr or mounted volumes
+#
+*.log
+logs
+tmp
+temp
+
+# ============================================================================
+# OS-SPECIFIC FILES
+# ============================================================================
+#
+# WHY IGNORE: Operating system metadata files
+# .DS_Store = macOS folder metadata
+# Thumbs.db = Windows thumbnail cache
+# SIZE: Individually small, but adds up across many folders
+#
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================================
+# EXAMPLE: What Gets Included vs Excluded
+# ============================================================================
+#
+# ✓ INCLUDED (Needed for build):
+# - src/ (source code)
+# - package.json (dependency list)
+# - tsconfig.json (TypeScript config)
+# - angular.json (Angular config)
+#
+# ✗ EXCLUDED (Not needed):
+# - node_modules/ (will be installed fresh in container)
+# - dist/ (will be built fresh in container)
+# - .git/ (version control not needed at runtime)
+# - coverage/ (test results not needed in production)
+# - .env (secrets should come from environment variables)
+#
+# ============================================================================
+# BUILD CONTEXT SIZE COMPARISON
+# ============================================================================
+#
+# WITHOUT .dockerignore:
+# - node_modules: 500MB
+# - .git: 100MB
+# - dist: 50MB
+# - coverage: 20MB
+# - Source code: 5MB
+# TOTAL: ~675MB build context
+#
+# WITH .dockerignore:
+# - Source code: 5MB
+# TOTAL: ~5MB build context
+#
+# RESULT: 135x smaller build context = much faster builds!
+#
+# ============================================================================
