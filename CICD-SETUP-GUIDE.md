@@ -73,7 +73,7 @@ GitHub Repository → Settings → Secrets and variables → Actions
 
 **2.2 Create Repository Secrets:**
 
-Click "New repository secret" and add each of these:
+Click "New repository secret" and add **only these 2 sensitive credentials**:
 
 #### Secret 1: AWS_ACCESS_KEY_ID
 ```
@@ -97,47 +97,22 @@ Secret: [Your AWS Secret Access Key]
 
 **Security Note:** This is shown only once when created. If lost, create new access keys.
 
-#### Secret 3: UNIQUE_ID
-```
-Name: UNIQUE_ID
-Secret: shree-1767366539
-```
-
-**From your `.env.aws` file:**
-```bash
-cat .env.aws | grep UNIQUE_ID
-```
-
-#### Secret 4: CLOUDFRONT_DISTRIBUTION_ID
-```
-Name: CLOUDFRONT_DISTRIBUTION_ID
-Secret: E1QKKABZX5LKQQ
-```
-
-**From your `.env.aws` file:**
-```bash
-cat .env.aws | grep CLOUDFRONT_DISTRIBUTION_ID
-```
-
-#### Secret 5: CLOUDFRONT_DOMAIN
-```
-Name: CLOUDFRONT_DOMAIN
-Secret: d29lgch8cdh74n.cloudfront.net
-```
-
-**From your `.env.aws` file:**
-```bash
-cat .env.aws | grep CLOUDFRONT_DOMAIN
-```
-
 **2.3 Verify All Secrets Created:**
 
-You should now see 5 repository secrets:
+You should now see **2 repository secrets**:
 - ✅ AWS_ACCESS_KEY_ID
 - ✅ AWS_SECRET_ACCESS_KEY
-- ✅ UNIQUE_ID
-- ✅ CLOUDFRONT_DISTRIBUTION_ID
-- ✅ CLOUDFRONT_DOMAIN
+
+**2.4 Why Only 2 Secrets?**
+
+**Note:** Earlier versions of this guide recommended storing `UNIQUE_ID`, `CLOUDFRONT_DISTRIBUTION_ID`, and `CLOUDFRONT_DOMAIN` as secrets. However, these values are:
+- **Not sensitive** (publicly visible in URLs, responses, and DNS records)
+- **Already exposed** (users access these URLs directly)
+- **Public identifiers** (not credentials)
+
+For architectural consistency and maintainability, these are now defined as **environment variables** in the workflow file (`.github/workflows/deploy-s3.yml`). This provides a single source of truth and avoids mixing hardcoded values with secrets.
+
+**Only credentials (AWS keys) should be secrets.**
 
 ---
 

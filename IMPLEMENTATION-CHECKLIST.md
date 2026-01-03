@@ -1523,12 +1523,11 @@ Before CI/CD workflows can run successfully, complete these configuration steps:
 ### 1. Configure GitHub Secrets
 Navigate to: `Repository → Settings → Secrets and variables → Actions`
 
-Create these 5 repository secrets:
+Create these **2 repository secrets** (credentials only):
 - `AWS_ACCESS_KEY_ID` - Your AWS access key
 - `AWS_SECRET_ACCESS_KEY` - Your AWS secret key
-- `UNIQUE_ID` - Your unique identifier (shree-1767366539)
-- `CLOUDFRONT_DISTRIBUTION_ID` - CloudFront distribution ID
-- `CLOUDFRONT_DOMAIN` - CloudFront domain name
+
+**Note:** `UNIQUE_ID`, `CLOUDFRONT_DISTRIBUTION_ID`, and `CLOUDFRONT_DOMAIN` are defined as environment variables in the workflow file (not secrets) because they are public identifiers, not credentials.
 
 **Reference:** See [CICD-SETUP-GUIDE.md](CICD-SETUP-GUIDE.md) for detailed instructions
 
