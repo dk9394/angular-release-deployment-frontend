@@ -1180,14 +1180,231 @@ CLOUDFRONT_DOMAIN=d29lgch8cdh74n.cloudfront.net
 
 ---
 
+## Phase 5: CI/CD for Serverless (S3 + CloudFront) - COMPLETE ✅
+
+### Step 30*: Create GitHub Actions Workflow Directory
+- ✅ Created `.github/workflows/` directory
+- ✅ Standard location for GitHub Actions workflow files
+- ✅ Automatically detected by GitHub
+
+**Outcome:** Workflow directory ready for CI/CD configuration
+
+---
+
+### Step 31*: Create Multi-Environment CI/CD Workflow
+- ✅ Created `.github/workflows/deploy-s3.yml` (500+ lines)
+- ✅ 8 jobs configured:
+  1. Lint & Format Check
+  2. Unit Tests
+  3. Build Angular App
+  4. Deploy to Development (auto on push to develop)
+  5. Deploy to QA (manual trigger only)
+  6. Deploy to Staging (auto on push to staging)
+  7. Deploy to Production (auto on push to main with approval)
+  8. Deployment Notifications (extensible)
+
+**Workflow Features:**
+- Environment-specific configuration swapping
+- Build artifact optimization with caching
+- AWS credentials management via GitHub Secrets
+- CloudFront cache invalidation (production only)
+- Manual approval gates for production
+- Deployment summary with URLs
+- Pull request testing (no deployment)
+
+**Triggers:**
+```yaml
+- Push to develop → Deploy to dev
+- Push to staging → Deploy to staging
+- Push to main → Deploy to prod (with approval)
+- Manual trigger → Deploy to any environment
+- Pull request → Run tests only
+```
+
+**Outcome:** Complete automated CI/CD pipeline configured
+
+---
+
+### Step 32*: Add Inline Documentation for Alternative Approaches
+- ✅ Comprehensive comments explaining deployment alternatives
+- ✅ Option 1: Using deploy.sh (Bash Script)
+  - Complete example with environment variables
+  - Explains what steps it replaces
+  - Pros/cons documented
+- ✅ Option 2: Using deploy.mjs (Node.js Script)
+  - Complete example with environment variables
+  - Explains what steps it replaces
+  - Pros/cons documented
+- ✅ Rationale for direct commands in CI/CD (8 reasons)
+
+**Comment Location:** Inline at deployment step (as requested)
+
+**Outcome:** Clear reference for alternative deployment approaches
+
+---
+
+### Step 33*: Create Cross-Platform Deployment Script
+- ✅ Created `deploy.mjs` (260+ lines)
+- ✅ Node.js-based deployment script
+- ✅ Works on Windows, macOS, and Linux
+- ✅ Feature parity with deploy.sh
+
+**Features:**
+- ANSI color-coded output
+- Cross-platform path handling
+- Same 4-step deployment process as deploy.sh
+- Environment configuration swapping
+- S3 deployment with AWS CLI
+- CloudFront cache invalidation (production)
+- Comprehensive error handling
+- Educational comments
+
+**Outcome:** Windows-compatible deployment script for local use
+
+---
+
+### Step 34*: Add Deployment npm Scripts
+- ✅ Updated `package.json` with deployment commands
+- ✅ Bash script wrappers: `deploy:dev`, `deploy:qa`, `deploy:staging`, `deploy:prod`
+- ✅ Node.js script wrappers: `deploy:dev:node`, `deploy:qa:node`, `deploy:staging:node`, `deploy:prod:node`
+- ✅ Help command: `deploy:help`
+- ✅ Documentation comments explaining usage
+
+**Usage:**
+```bash
+npm run deploy:help          # Show all options
+npm run deploy:dev           # Deploy to dev (bash)
+npm run deploy:dev:node      # Deploy to dev (Node.js)
+npm run deploy:prod          # Deploy to prod (bash)
+npm run deploy:prod:node     # Deploy to prod (Node.js)
+```
+
+**Outcome:** Easy-to-remember deployment commands
+
+---
+
+### Step 35*: Create CI/CD Setup Guide
+- ✅ Created `CICD-SETUP-GUIDE.md` (700+ lines)
+- ✅ Step-by-step GitHub Secrets configuration
+- ✅ Environment protection rules setup
+- ✅ Complete workflow explanation (triggers, jobs, steps)
+- ✅ Deployment workflows for each environment
+- ✅ Troubleshooting guide with common errors and solutions
+- ✅ Security best practices
+- ✅ Cost analysis
+- ✅ Advanced configurations (Slack, tags, multi-account)
+
+**Sections:**
+1. Prerequisites
+2. Configure GitHub Secrets (5 secrets)
+3. Configure GitHub Environments (4 environments with protection rules)
+4. Understanding the Workflow
+5. Test the CI/CD Pipeline
+6. Deployment Workflows (dev/staging/prod)
+7. Troubleshooting
+8. Best Practices
+9. CI/CD vs Manual Deployment
+10. Monitoring Deployments
+11. Cost Analysis
+12. Security Checklist
+
+**Outcome:** Complete guide for setting up and using CI/CD
+
+---
+
+### Step 36*: Create Deployment Options Guide
+- ✅ Created `DEPLOYMENT-OPTIONS.md` (300+ lines)
+- ✅ When to use each deployment method
+- ✅ Decision trees for method selection
+- ✅ Real-world scenarios and examples
+- ✅ Platform compatibility matrix
+- ✅ Best practices
+
+**Deployment Methods Documented:**
+1. GitHub Actions (recommended for production)
+2. Bash Script (emergency manual deployments)
+3. Node.js Script (cross-platform reference)
+
+**Includes:**
+- Quick reference table
+- Detailed comparison
+- Real-world scenarios (4 scenarios)
+- Environment-specific recommendations
+- Troubleshooting guide
+- Learning resources
+
+**Outcome:** Clear guidance on choosing deployment approaches
+
+---
+
+### Step 37*: Create GitHub Actions Monitoring Guide
+- ✅ Created `GITHUB-ACTIONS-MONITORING-GUIDE.md` (500+ lines)
+- ✅ How to access GitHub Actions dashboard
+- ✅ Understanding workflow status indicators
+- ✅ Viewing deployment details step-by-step
+- ✅ Reading deployment summaries (user's specific request!)
+- ✅ Monitoring live deployments in real-time
+- ✅ Checking deployment history
+- ✅ Troubleshooting failed deployments with solutions
+- ✅ Using GitHub CLI for monitoring
+- ✅ Deployment summary examples
+
+**Sections:**
+1. Accessing GitHub Actions
+2. Understanding the Workflow Dashboard
+3. Viewing Deployment Details
+4. Reading Deployment Summaries
+5. Monitoring Live Deployments
+6. Checking Deployment History
+7. Troubleshooting Failed Deployments
+8. Using GitHub CLI for Monitoring
+9. Deployment Summary Checklist
+10. Best Practices for Monitoring
+11. Deployment Summary Examples
+12. Quick Reference Card
+
+**Outcome:** Complete guide for monitoring CI/CD deployments
+
+---
+
+### Step 38*: Commit and Push Phase 5 to GitHub
+- ✅ Staged all Phase 5 changes (6 files, 2,451 lines)
+- ✅ Created comprehensive commit message
+- ✅ Committed to develop branch (commit: ab01fc1)
+- ✅ Pushed to GitHub remote
+- ✅ Pre-commit hooks ran successfully (lint-staged, Prettier)
+
+**Files Committed:**
+1. `.github/workflows/deploy-s3.yml` - CI/CD workflow
+2. `deploy.mjs` - Cross-platform deployment script
+3. `package.json` - Updated with deployment scripts
+4. `CICD-SETUP-GUIDE.md` - Setup guide
+5. `DEPLOYMENT-OPTIONS.md` - Deployment methods guide
+6. `GITHUB-ACTIONS-MONITORING-GUIDE.md` - Monitoring guide
+
+**Commit Message Highlights:**
+- Phase 5 Complete - CI/CD for Serverless
+- Multi-environment CI/CD pipeline
+- Cross-platform deployment support
+- Comprehensive documentation (3 guides)
+- Inline alternative approach documentation
+
+**Outcome:** Phase 5 changes committed and pushed to GitHub
+
+---
+
 ## Summary Statistics
 
-**Total Mandatory Steps Completed:** 23 (marked with *)
-**Total Steps Completed:** 29
-**Phases Completed:** 4 (Phases 1, 2, 2.5, 3, 4A)
+**Total Mandatory Steps Completed:** 31 (marked with *)
+**Total Steps Completed:** 38
+**Phases Completed:** 5 (Phases 1, 2, 2.5, 3, 4A, 5)
 **Phases In Progress:** 0
-**Configuration Files Created:** 28+
-**Documentation Files Created:** 11+
+**Configuration Files Created:** 32+
+**Documentation Files Created:** 17+
+**Lines of Code/Documentation Added:**
+- Phase 1-4A: ~3,500 lines
+- Phase 5: ~2,500 lines
+- **Total: ~6,000 lines**
 
 ---
 
@@ -1214,14 +1431,27 @@ CLOUDFRONT_DOMAIN=d29lgch8cdh74n.cloudfront.net
 - Multi-environment S3 static hosting (dev, qa, staging, prod)
 - CloudFront CDN with HTTPS (production)
 - Automated deployment script (deploy.sh)
+- Cross-platform deployment script (deploy.mjs)
 - Cache invalidation automation
 - Global edge network (450+ locations)
+
+✅ **CI/CD Automation:**
+- GitHub Actions multi-environment pipeline
+- Automated linting, testing, building, deployment
+- Manual approval gates for production
+- Environment-specific configuration swapping
+- CloudFront cache invalidation (production)
+- Pull request testing without deployment
+- Deployment monitoring and summaries
 
 ✅ **Documentation:**
 - Every major feature documented
 - Step-by-step setup guides
 - Complete file contents included
 - Comprehensive AWS knowledge guide (1000+ lines)
+- CI/CD setup guide (700+ lines)
+- Deployment options guide (300+ lines)
+- GitHub Actions monitoring guide (500+ lines)
 - No external file lookups required
 
 ---
@@ -1246,13 +1476,12 @@ CLOUDFRONT_DOMAIN=d29lgch8cdh74n.cloudfront.net
 ## Upcoming Phases
 
 - **Phase 4B:** Frontend Docker Deployment (~3-4 hours)
-- **Phase 5:** Frontend CI/CD Quality Gates (~3-4 hours)
-- **Phase 6:** Frontend CI/CD Build & Deploy (~3-4 hours)
-- **Phase 7:** Frontend Versioning (~2-3 hours)
-- **Phase 8:** Production Deployment Strategies (~4-5 hours)
-- **Phase 9:** Cross-Repo Integration (~3-4 hours)
+- **Phase 6:** Frontend Versioning & Tagging (~2-3 hours)
+- **Phase 7:** Production Deployment Strategies (Blue-Green, Canary) (~4-5 hours)
+- **Phase 8:** Cross-Repo Integration Testing (~3-4 hours)
+- **Phase 9:** Monitoring & Observability (~3-4 hours)
 
-**Estimated Time Remaining:** ~20-25 hours of learning
+**Estimated Time Remaining:** ~15-20 hours of learning
 
 ---
 
@@ -1278,9 +1507,81 @@ CLOUDFRONT_DOMAIN=d29lgch8cdh74n.cloudfront.net
 
 ---
 
-**Last Updated:** 2026-01-02 (Phase 4A Complete)
-**Current Phase:** Phase 4A - COMPLETE ✅
-**Next Phase:** Phase 4B - Docker Deployment or Phase 5 - CI/CD Automation
-**Project Completion:** ~40% complete
+**Last Updated:** 2026-01-03 (Phase 5 Complete)
+**Current Phase:** Phase 5 - CI/CD for Serverless - COMPLETE ✅
+**Next Phase:** Phase 4B (Docker Deployment) or Phase 6 (Versioning & Tagging)
+**Project Completion:** ~60% complete
 
-**Note:** This document will be updated after each major step going forward.
+**Note:** This document is updated after each major phase completion.
+
+---
+
+## Next Steps (To Complete CI/CD Setup)
+
+Before CI/CD workflows can run successfully, complete these configuration steps:
+
+### 1. Configure GitHub Secrets
+Navigate to: `Repository → Settings → Secrets and variables → Actions`
+
+Create these 5 repository secrets:
+- `AWS_ACCESS_KEY_ID` - Your AWS access key
+- `AWS_SECRET_ACCESS_KEY` - Your AWS secret key
+- `UNIQUE_ID` - Your unique identifier (shree-1767366539)
+- `CLOUDFRONT_DISTRIBUTION_ID` - CloudFront distribution ID
+- `CLOUDFRONT_DOMAIN` - CloudFront domain name
+
+**Reference:** See [CICD-SETUP-GUIDE.md](CICD-SETUP-GUIDE.md) for detailed instructions
+
+### 2. Configure GitHub Environments
+Navigate to: `Repository → Settings → Environments`
+
+Create these 4 environments:
+- `development` (no protection)
+- `qa` (no protection)
+- `staging` (no protection)
+- `production` (required reviewers: add yourself)
+
+**Reference:** See [CICD-SETUP-GUIDE.md](CICD-SETUP-GUIDE.md) Step 1
+
+### 3. Test the CI/CD Pipeline
+```bash
+# Make a small change and push to develop
+git checkout develop
+echo "// CI/CD test" >> src/app/app.component.ts
+git add .
+git commit -m "test: verify CI/CD pipeline"
+git push origin develop
+```
+
+Monitor the workflow at: `Repository → Actions`
+
+**Reference:** See [GITHUB-ACTIONS-MONITORING-GUIDE.md](GITHUB-ACTIONS-MONITORING-GUIDE.md) for monitoring instructions
+
+---
+
+## Future Testing Scenarios (Pending)
+
+These realistic workflow scenarios will be tested in future sessions:
+
+1. **5 PRs Merged, 4 Features Go Live**
+   - Scenario: 5 feature PRs merged to develop, but only 4 features should be deployed this sprint
+   - Flow: Feature flags, selective cherry-picking, or release branch strategy
+   - Must follow: Proper PR process (no direct pushes)
+
+2. **Hotfix Flow**
+   - Scenario: Critical bug found in production requiring immediate fix
+   - Flow: Create hotfix branch from main → fix → PR → approve → merge → auto-deploy
+   - Must follow: Emergency approval process, proper documentation
+
+3. **Rollback Flow**
+   - Scenario: Production deployment causes issues, need to rollback
+   - Flow: Revert commit → PR → approve → merge → auto-deploy previous version
+   - Must follow: Incident documentation, post-mortem process
+
+4. **Additional Scenarios to Design**
+   - Conflicting PRs requiring manual merge
+   - Failed deployment recovery
+   - Partial environment failure
+   - Cross-environment promotion timing
+
+**Note:** All flows must use proper PR-based workflows. No direct pushes to protected branches.
