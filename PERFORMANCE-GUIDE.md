@@ -21,10 +21,11 @@ This project implements comprehensive performance monitoring using:
 2. [Web Vitals Tracking](#web-vitals-tracking)
 3. [Lighthouse CI](#lighthouse-ci)
 4. [Performance Budgets](#performance-budgets)
-5. [Reading Lighthouse Reports](#reading-lighthouse-reports)
-6. [Common Performance Issues](#common-performance-issues)
-7. [Optimization Tips](#optimization-tips)
-8. [Troubleshooting](#troubleshooting)
+5. [Lighthouse PR Comments](#lighthouse-pr-comments)
+6. [Reading Lighthouse Reports](#reading-lighthouse-reports)
+7. [Common Performance Issues](#common-performance-issues)
+8. [Optimization Tips](#optimization-tips)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -283,6 +284,118 @@ PR #1: Add library (+100KB)
   → Dev: Switches to lighter alternative
   → Lighthouse: ✅ Bundle size 450KB
   → Merged!
+```
+
+---
+
+## Lighthouse PR Comments
+
+### Overview
+
+Starting from 2026-01-03, Lighthouse results are **automatically posted as PR comments**. You no longer need to download artifacts manually.
+
+### What You'll See
+
+**Success Example:**
+
+When your PR passes performance budgets, you'll see:
+
+```markdown
+## 🎉 Lighthouse CI Passed!
+
+### 📊 Performance Scores
+| Category | Score | Status |
+|----------|-------|--------|
+| Performance | 95 | ✅ |
+| Accessibility | 92 | ✅ |
+| Best Practices | 98 | ✅ |
+| SEO | 100 | ✅ |
+
+### ⚡ Core Web Vitals
+| Metric | Value | Budget | Status |
+|--------|-------|--------|--------|
+| LCP (Largest Contentful Paint) | 2.1s | ≤2.5s | ✅ |
+| FCP (First Contentful Paint) | 1.6s | ≤1.8s | ✅ |
+| CLS (Cumulative Layout Shift) | 0.050 | ≤0.1 | ✅ |
+| TBT (Total Blocking Time) | 120ms | ≤300ms | ✅ |
+| SI (Speed Index) | 2.8s | ≤3.4s | ✅ |
+```
+
+**Failure Example:**
+
+When performance budgets are violated:
+
+```markdown
+## ❌ Lighthouse CI Failed
+
+### 📊 Performance Scores
+| Category | Score | Status |
+|----------|-------|--------|
+| Performance | 85 | ❌ |
+| LCP | 3.2s | ≤2.5s | ❌ |
+```
+
+### How It Works
+
+1. **Lighthouse CI runs** on every PR
+2. **Parses JSON results** from `.lighthouseci/manifest.json`
+3. **Extracts metrics** (performance scores, LCP, FCP, CLS, TBT, SI)
+4. **Formats as markdown** with emojis (✅/❌)
+5. **Posts comment** on the PR automatically
+6. **Updates comment** on subsequent runs (no duplicates)
+
+**Implementation:** `.github/workflows/performance-check.yml:186-300`
+
+### Benefits
+
+**Before (Manual):**
+- Go to PR → Checks → Performance Check → Scroll to Artifacts → Download ZIP → Extract → Open HTML
+- Time: ~2-3 minutes
+
+**After (Automated):**
+- Open PR → Scroll to comments → See results instantly
+- Time: ~5 seconds
+
+### Metrics Displayed
+
+**Performance Scores:**
+- Performance (≥90)
+- Accessibility (≥90)
+- Best Practices (≥90)
+- SEO (≥90)
+
+**Core Web Vitals:**
+- LCP: Largest Contentful Paint (≤2.5s)
+- FCP: First Contentful Paint (≤1.8s)
+- CLS: Cumulative Layout Shift (≤0.1)
+- TBT: Total Blocking Time (≤300ms)
+- SI: Speed Index (≤3.4s)
+
+### When Comments Appear
+
+✅ **Comments posted:**
+- Pull requests to `develop`, `staging`, or `main`
+
+❌ **Comments NOT posted:**
+- Manual workflow triggers
+- Direct pushes to branches (not PRs)
+- Markdown-only changes (workflow skipped)
+
+### Troubleshooting PR Comments
+
+**Comment not appearing?**
+
+1. Verify it's a pull request (not a direct push)
+2. Check workflow completed: PR → Checks → Performance Check
+3. Look for errors in "Post Lighthouse results to PR" step
+
+**Common issues:**
+```
+Manifest file not found, skipping PR comment
+→ Lighthouse CI didn't complete successfully
+
+LHR file not found, skipping PR comment
+→ JSON report missing or corrupted
 ```
 
 ---
