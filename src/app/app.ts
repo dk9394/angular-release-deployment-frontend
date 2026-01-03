@@ -33,7 +33,7 @@ export class App implements OnInit {
 
     // Log performance summary in console
     if (typeof ngDevMode !== 'undefined' && ngDevMode) {
-      console.warn('DevMode: ', ngDevMode);
+      console.warn('ngDevMode: ', ngDevMode);
       console.warn(this.performanceService.getPerformanceSummary());
     }
   }
