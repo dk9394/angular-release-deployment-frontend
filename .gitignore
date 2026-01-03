@@ -44,3 +44,6 @@ Thumbs.db
 
 # aws
 .env.aws
+
+# Bundle analysis
+bundle-report.html
