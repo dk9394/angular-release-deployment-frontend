@@ -1,0 +1,19 @@
+{
+  "name": "production",
+  "production": true,
+  "apiUrl": "https://api.yourapp.com/api",
+  "apiTimeout": 15000,
+  "authUrl": "https://auth.yourapp.com/auth",
+  "authTokenKey": "prod_auth_token",
+  "features": {
+    "enableNewCheckout": false,
+    "enableAnalytics": true,
+    "enableLogging": false
+  },
+  "analytics": {
+    "googleAnalyticsId": "UA-XXXXXXXX-1",
+    "enableTracking": true
+  },
+  "cacheTimeout": 3600,
+  "retryAttempts": 1
+}

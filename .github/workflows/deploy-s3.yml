@@ -1,0 +1,468 @@
+name: Deploy to AWS S3
+
+# ─────────────────────────────────────────────────────────────
+# Trigger Configuration
+# ─────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - develop      # Auto-deploy to dev
+      - staging      # Auto-deploy to staging
+      - main         # Manual approval for prod
+  pull_request:
+    branches:
+      - develop
+      - staging
+      - main
+  workflow_dispatch:  # Manual trigger from GitHub UI
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - staging
+          - prod
+
+# ─────────────────────────────────────────────────────────────
+# Environment Variables (Global)
+# ─────────────────────────────────────────────────────────────
+# Note: These values are NOT sensitive and are safe to expose:
+# - UNIQUE_ID: Just a bucket naming suffix (publicly visible in URLs anyway)
+# - CLOUDFRONT_DISTRIBUTION_ID: Public identifier (not a credential)
+# - CLOUDFRONT_DOMAIN: Already public (users access this URL)
+#
+# Only AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are kept as secrets.
+#
+# Why not use secrets for these? To maintain consistency throughout the
+# workflow. GitHub Actions environment.url doesn't support expressions,
+# so we must hardcode URLs there. Using env vars everywhere else keeps
+# a single source of truth (this env block) rather than mixing hardcoded
+# values with secrets.
+# ─────────────────────────────────────────────────────────────
+
+env:
+  NODE_VERSION: '20.x'
+  AWS_REGION: 'us-east-1'
+  UNIQUE_ID: 'shree-1767366539'  # Bucket naming suffix (not sensitive, safe to expose)
+  CLOUDFRONT_DISTRIBUTION_ID: 'E1QKKABZX5LKQQ'  # CloudFront distribution ID (not sensitive)
+  CLOUDFRONT_DOMAIN: 'd29lgch8cdh74n.cloudfront.net'  # CloudFront domain (public anyway)
+
+# ─────────────────────────────────────────────────────────────
+# Jobs
+# ─────────────────────────────────────────────────────────────
+
+jobs:
+  # ═══════════════════════════════════════════════════════════
+  # Job 1: Linting & Code Quality
+  # ═══════════════════════════════════════════════════════════
+
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: false
+
+      - name: Run Prettier check
+        run: npm run format:check
+        continue-on-error: false
+
+  # ═══════════════════════════════════════════════════════════
+  # Job 2: Unit Tests
+  # ═══════════════════════════════════════════════════════════
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+        continue-on-error: false
+
+  # ═══════════════════════════════════════════════════════════
+  # Job 3: Build Application
+  # ═══════════════════════════════════════════════════════════
+
+  build:
+    name: Build Angular App
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for production
+        run: npm run build -- --configuration=production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/angular-release-deployment-frontend/browser
+          retention-days: 1
+
+  # ═══════════════════════════════════════════════════════════
+  # Job 4: Deploy to Development
+  # ═══════════════════════════════════════════════════════════
+
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment:
+      name: development
+      url: http://angular-deploy-dev-shree-1767366539.s3-website-us-east-1.amazonaws.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/angular-release-deployment-frontend/browser
+
+      - name: Swap environment configuration
+        run: |
+          cp src/assets/config/environment.dev.json \
+             dist/angular-release-deployment-frontend/browser/assets/config/environment.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist/angular-release-deployment-frontend/browser \
+            s3://angular-deploy-dev-${{ env.UNIQUE_ID }} --delete
+
+        # ═════════════════════════════════════════════════════════════════════
+        # Alternative Deployment Approaches (For Reference)
+        # ═════════════════════════════════════════════════════════════════════
+        #
+        # The current workflow uses direct AWS CLI commands for better visibility
+        # and debugging. Below are two alternative approaches you could use instead.
+        #
+        # ─────────────────────────────────────────────────────────────────────
+        # Option 1: Using deploy.sh (Bash Script)
+        # ─────────────────────────────────────────────────────────────────────
+        #
+        # Why we don't use deploy.sh in CI/CD:
+        # ✗ Hides individual steps inside script (less visibility)
+        # ✗ Single step failure means entire script fails
+        # ✗ Harder to debug - need to read script logs
+        # ✗ Can't retry individual steps
+        # ✓ But useful for local emergency deployments
+        #
+        # Complete example using deploy.sh:
+        #
+        # - name: Deploy using bash script
+        #   run: ./deploy.sh dev
+        #   env:
+        #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        #     AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        #
+        # This single step replaces:
+        # - Checkout code
+        # - Download artifacts
+        # - Swap environment config
+        # - Configure AWS credentials
+        # - Deploy to S3
+        # - Show deployment summary
+        #
+        # ─────────────────────────────────────────────────────────────────────
+        # Option 2: Using deploy.mjs (Node.js Script)
+        # ─────────────────────────────────────────────────────────────────────
+        #
+        # Why we don't use deploy.mjs in CI/CD:
+        # ✗ Adds Node.js execution overhead
+        # ✗ AWS CLI already available in GitHub Actions runners
+        # ✗ Less transparent than direct commands
+        # ✗ Primarily designed for cross-platform local use (Windows)
+        # ✓ But useful for Windows developers locally
+        #
+        # Complete example using deploy.mjs:
+        #
+        # - name: Deploy using Node.js script
+        #   run: node deploy.mjs dev
+        #   env:
+        #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        #     AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        #
+        # This single step also replaces all the same steps as deploy.sh above.
+        #
+        # ─────────────────────────────────────────────────────────────────────
+        # Why Direct Commands Are Better for CI/CD:
+        # ─────────────────────────────────────────────────────────────────────
+        #
+        # ✓ Each step visible in GitHub Actions UI
+        # ✓ Can see exactly which step failed
+        # ✓ Better logging and error messages
+        # ✓ Can retry individual steps
+        # ✓ Easier for team to understand workflow
+        # ✓ No need to read external script files
+        # ✓ GitHub Actions provides better timeout handling
+        # ✓ Integration with GitHub's built-in retry mechanisms
+        #
+        # ═════════════════════════════════════════════════════════════════════
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Development deployment successful!"
+          echo "🌐 URL: http://angular-deploy-dev-${{ env.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
+
+  # ═══════════════════════════════════════════════════════════
+  # Job 5: Deploy to QA (Manual Trigger Only)
+  # ═══════════════════════════════════════════════════════════
+
+  deploy-qa:
+    name: Deploy to QA
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa'
+    environment:
+      name: qa
+      url: http://angular-deploy-qa-shree-1767366539.s3-website-us-east-1.amazonaws.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/angular-release-deployment-frontend/browser
+
+      - name: Swap environment configuration
+        run: |
+          cp src/assets/config/environment.qa.json \
+             dist/angular-release-deployment-frontend/browser/assets/config/environment.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist/angular-release-deployment-frontend/browser \
+            s3://angular-deploy-qa-${{ env.UNIQUE_ID }} --delete
+
+      - name: Deployment summary
+        run: |
+          echo "✅ QA deployment successful!"
+          echo "🌐 URL: http://angular-deploy-qa-${{ env.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
+
+  # ═══════════════════════════════════════════════════════════
+  # Job 6: Deploy to Staging
+  # ═══════════════════════════════════════════════════════════
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/staging' && github.event_name == 'push'
+    environment:
+      name: staging
+      url: http://angular-deploy-staging-shree-1767366539.s3-website-us-east-1.amazonaws.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/angular-release-deployment-frontend/browser
+
+      - name: Swap environment configuration
+        run: |
+          cp src/assets/config/environment.staging.json \
+             dist/angular-release-deployment-frontend/browser/assets/config/environment.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist/angular-release-deployment-frontend/browser \
+            s3://angular-deploy-staging-${{ env.UNIQUE_ID }} --delete
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Staging deployment successful!"
+          echo "🌐 URL: http://angular-deploy-staging-${{ env.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
+
+  # ═══════════════════════════════════════════════════════════
+  # Job 7: Deploy to Production (With Approval + CloudFront)
+  # ═══════════════════════════════════════════════════════════
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://d29lgch8cdh74n.cloudfront.net
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/angular-release-deployment-frontend/browser
+
+      - name: Swap environment configuration
+        run: |
+          cp src/assets/config/environment.production.json \
+             dist/angular-release-deployment-frontend/browser/assets/config/environment.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist/angular-release-deployment-frontend/browser \
+            s3://angular-deploy-prod-${{ env.UNIQUE_ID }} --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+        # ─────────────────────────────────────────────────────
+        # Why CloudFront Invalidation is Critical
+        # ─────────────────────────────────────────────────────
+        # CloudFront caches files at edge locations worldwide.
+        # Without invalidation, users may see old content for:
+        # - Default TTL: 24 hours
+        # - Max-Age header: varies by file
+        #
+        # Invalidation forces CloudFront to fetch fresh files
+        # from S3 origin immediately (propagates in 1-2 minutes)
+        #
+        # Cost: First 1,000 invalidation paths/month are FREE
+        # ─────────────────────────────────────────────────────
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Production deployment successful!"
+          echo "🌐 CloudFront URL: https://${{ env.CLOUDFRONT_DOMAIN }}"
+          echo "🌐 S3 Direct URL: http://angular-deploy-prod-${{ env.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
+          echo "⏱️  CloudFront cache invalidated - fresh content available in 1-2 minutes"
+
+  # ═══════════════════════════════════════════════════════════
+  # Job 8: Deployment Notification (Optional)
+  # ═══════════════════════════════════════════════════════════
+
+  notify:
+    name: Send Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [deploy-dev, deploy-qa, deploy-staging, deploy-prod]
+    if: always()
+
+    steps:
+      - name: Check deployment status
+        run: |
+          echo "Deployment workflow completed"
+          echo "Status: ${{ job.status }}"
+
+        # ─────────────────────────────────────────────────────
+        # Integration Options for Notifications
+        # ─────────────────────────────────────────────────────
+        # You can integrate with various notification services:
+        #
+        # 1. Slack:
+        #    - uses: slackapi/slack-github-action@v1
+        #    - Send deployment notifications to team channel
+        #
+        # 2. Email:
+        #    - uses: dawidd6/action-send-mail@v3
+        #    - Email deployment summaries
+        #
+        # 3. Discord:
+        #    - uses: sarisia/actions-status-discord@v1
+        #    - Notify Discord server
+        #
+        # 4. Microsoft Teams:
+        #    - Post to Teams webhook
+        #
+        # 5. Custom webhook:
+        #    - curl POST to your monitoring service
+        #
+        # Example Slack integration:
+        # - name: Notify Slack
+        #   uses: slackapi/slack-github-action@v1
+        #   with:
+        #     webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        #     payload: |
+        #       {
+        #         "text": "Deployment to ${{ github.ref }} completed!"
+        #       }
+        # ─────────────────────────────────────────────────────
