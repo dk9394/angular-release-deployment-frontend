@@ -1293,10 +1293,11 @@ npm run deploy:prod:node     # Deploy to prod (Node.js)
 - ✅ Security best practices
 - ✅ Cost analysis
 - ✅ Advanced configurations (Slack, tags, multi-account)
+- ✅ **Updated in Step 39**: Reflects 2-secret architecture (not 5)
 
 **Sections:**
 1. Prerequisites
-2. Configure GitHub Secrets (5 secrets)
+2. Configure GitHub Secrets (2 secrets - AWS credentials only)
 3. Configure GitHub Environments (4 environments with protection rules)
 4. Understanding the Workflow
 5. Test the CI/CD Pipeline
@@ -1307,6 +1308,8 @@ npm run deploy:prod:node     # Deploy to prod (Node.js)
 10. Monitoring Deployments
 11. Cost Analysis
 12. Security Checklist
+
+**Note:** Originally documented 5 secrets, refactored to 2 secrets in Step 39 (UNIQUE_ID, CLOUDFRONT_* moved to env vars)
 
 **Outcome:** Complete guide for setting up and using CI/CD
 
@@ -1393,18 +1396,116 @@ npm run deploy:prod:node     # Deploy to prod (Node.js)
 
 ---
 
+### Step 39*: Refactor Workflow - Environment Variables vs Secrets
+- ✅ User identified architectural inconsistency (mixed hardcoding and secrets usage)
+- ✅ Refactored workflow to use environment variables for public identifiers
+- ✅ Moved UNIQUE_ID, CLOUDFRONT_DISTRIBUTION_ID, CLOUDFRONT_DOMAIN to env block
+- ✅ Replaced all secrets.* references with env.* (9+ instances)
+- ✅ Updated CICD-SETUP-GUIDE.md to reflect 2-secret architecture
+- ✅ Added comprehensive documentation comment in workflow
+
+**User Feedback:** "Mixing both approaches is confusing"
+
+**Changes:**
+```yaml
+env:
+  UNIQUE_ID: 'shree-1767366539'
+  CLOUDFRONT_DISTRIBUTION_ID: 'E1QKKABZX5LKQQ'
+  CLOUDFRONT_DOMAIN: 'd29lgch8cdh74n.cloudfront.net'
+```
+
+**Rationale:**
+- These values are publicly visible (URLs, DNS records)
+- Not sensitive credentials
+- Single source of truth at top of workflow
+- Architectural consistency
+
+**Result:** Reduced from 5 secrets to 2 (only AWS credentials remain as secrets)
+
+**Commits:**
+- "refactor: use environment variables instead of secrets for non-sensitive config"
+- "docs: update secrets configuration to reflect env var refactoring"
+
+**Outcome:** Cleaner, more consistent architecture with reduced secret management
+
+---
+
+### Step 40*: Fix Test Suite - Vitest Discovery
+- ✅ Fixed app.spec.ts failing due to missing ConfigService mock
+- ✅ Discovered project uses Vitest (not Jasmine)
+- ✅ Rewrote test using Vitest syntax (vi.fn().mockReturnValue())
+- ✅ Used Partial<ConfigService> for type safety
+- ✅ Removed @types/jasmine package (not needed)
+- ✅ Tests passing (2/2 ✅)
+
+**Initial Error:** "Cannot find namespace 'jasmine'"
+
+**Investigation:**
+- Checked tsconfig.spec.json
+- Found: "types": ["vitest/globals"]
+- Confirmed: Project uses Vitest, not Jasmine
+
+**Solution:**
+```typescript
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+mockConfigService = {
+  getConfig: vi.fn().mockReturnValue({ ... })
+};
+```
+
+**Outcome:** Working test suite with correct testing framework
+
+---
+
+### Step 41*: Create Deployment Workflow Mental Model Documentation
+- ✅ Created `DEPLOYMENT-WORKFLOW-MENTAL-MODEL.md` (comprehensive guide)
+- ✅ User request: "Make a high level of response that straight away gets fit in my mind with no confusion, clarification and doubts left."
+- ✅ Three-layer architecture explained (Git → GitHub Actions → AWS)
+- ✅ Complete environment mapping table
+- ✅ Two workflow behaviors documented (pull_request vs push)
+- ✅ QA environment as flexible playground ("helicopter vs train" analogy)
+- ✅ Three gatekeepers for deployment control
+- ✅ Decision trees and real-world examples
+- ✅ Common mistakes and troubleshooting
+- ✅ Quick reference cheat sheet
+
+**Key Sections:**
+1. Three-Layer Architecture
+2. Environment Types (application, GitHub, AWS)
+3. Complete Mapping Table (branch → event → environment → infrastructure)
+4. Two Workflow Behaviors:
+   - Behavior 1: pull_request (no deployment)
+   - Behavior 2: push (with deployment)
+5. Three Gatekeepers:
+   - Branch filter (develop/staging/main only)
+   - Event type (must be 'push' not 'pull_request')
+   - Branch match (branch must match deployment target)
+6. QA Environment - The Helicopter (no branch restrictions)
+7. Real-World Examples (feature development, hotfix, multi-feature testing)
+8. Common Mistakes
+9. Quick Reference Cheat Sheet
+10. Troubleshooting Guide
+
+**User Feedback:** "no confusion left" ✅
+
+**Outcome:** Comprehensive mental model document ensuring zero confusion
+
+---
+
 ## Summary Statistics
 
-**Total Mandatory Steps Completed:** 31 (marked with *)
-**Total Steps Completed:** 38
+**Total Mandatory Steps Completed:** 34 (marked with *)
+**Total Steps Completed:** 41
 **Phases Completed:** 5 (Phases 1, 2, 2.5, 3, 4A, 5)
 **Phases In Progress:** 0
 **Configuration Files Created:** 32+
-**Documentation Files Created:** 17+
+**Documentation Files Created:** 18+ (added DEPLOYMENT-WORKFLOW-MENTAL-MODEL.md)
 **Lines of Code/Documentation Added:**
 - Phase 1-4A: ~3,500 lines
 - Phase 5: ~2,500 lines
-- **Total: ~6,000 lines**
+- Phase 5 Post-Implementation: ~500 lines (mental model + refactoring)
+- **Total: ~6,500 lines**
 
 ---
 
@@ -1436,11 +1537,22 @@ npm run deploy:prod:node     # Deploy to prod (Node.js)
 - Global edge network (450+ locations)
 
 ✅ **CI/CD Automation:**
-- GitHub Actions multi-environment pipeline
-- Automated linting, testing, building, deployment
+- GitHub Actions multi-environment pipeline (dev, qa, staging, prod)
+- Refactored architecture (2 secrets instead of 5)
+- Environment variables for public configuration
+- Automated linting, testing, building, and deployment
 - Manual approval gates for production
-- Environment-specific configuration swapping
-- CloudFront cache invalidation (production)
+- CloudFront cache invalidation automation
+- Pull request quality gates (no deployment)
+- Real-time deployment monitoring
+
+✅ **Mental Model Documentation:**
+- Comprehensive deployment workflow guide (DEPLOYMENT-WORKFLOW-MENTAL-MODEL.md)
+- Three-layer architecture (Git → GitHub Actions → AWS)
+- Two workflow behaviors explained (PR vs push)
+- QA environment as flexible playground
+- Decision trees and gatekeepers
+- Zero-confusion reference (user validated)
 - Pull request testing without deployment
 - Deployment monitoring and summaries
 
@@ -1507,10 +1619,15 @@ npm run deploy:prod:node     # Deploy to prod (Node.js)
 
 ---
 
-**Last Updated:** 2026-01-03 (Phase 5 Complete)
-**Current Phase:** Phase 5 - CI/CD for Serverless - COMPLETE ✅
+**Last Updated:** 2026-01-03 (Phase 5 Complete + Post-Implementation Refinement)
+**Current Phase:** Phase 5 - CI/CD for Serverless - COMPLETE ✅ (Including Architecture Refinement & Mental Model)
 **Next Phase:** Phase 4B (Docker Deployment) or Phase 6 (Versioning & Tagging)
 **Project Completion:** ~60% complete
+
+**Recent Updates:**
+- Step 39: Refactored to 2-secret architecture (environment variables for public config)
+- Step 40: Fixed test suite (Vitest discovery and implementation)
+- Step 41: Created comprehensive deployment workflow mental model (user validated)
 
 **Note:** This document is updated after each major phase completion.
 
@@ -1527,7 +1644,7 @@ Create these **2 repository secrets** (credentials only):
 - `AWS_ACCESS_KEY_ID` - Your AWS access key
 - `AWS_SECRET_ACCESS_KEY` - Your AWS secret key
 
-**Note:** `UNIQUE_ID`, `CLOUDFRONT_DISTRIBUTION_ID`, and `CLOUDFRONT_DOMAIN` are defined as environment variables in the workflow file (not secrets) because they are public identifiers, not credentials.
+**Note:** `UNIQUE_ID`, `CLOUDFRONT_DISTRIBUTION_ID`, and `CLOUDFRONT_DOMAIN` are defined as environment variables in the workflow file (not secrets) because they are public identifiers, not credentials. This architectural decision was made in Step 39 based on user feedback about consistency.
 
 **Reference:** See [CICD-SETUP-GUIDE.md](CICD-SETUP-GUIDE.md) for detailed instructions
 

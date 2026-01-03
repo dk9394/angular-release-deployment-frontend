@@ -1,0 +1,418 @@
+# ============================================================================
+# GITHUB ACTIONS WORKFLOW - PERFORMANCE MONITORING
+# ============================================================================
+#
+# PURPOSE:
+# Automated performance testing using Lighthouse CI to ensure the Angular
+# application meets performance budgets and Web Vitals standards.
+#
+# WORKFLOW OVERVIEW:
+# 1. Build Angular application
+# 2. Serve built app locally
+# 3. Run Lighthouse CI against localhost
+# 4. Check performance metrics against budgets
+# 5. Generate HTML report
+# 6. Fail PR if budgets violated
+#
+# WHEN THIS RUNS:
+# - Every pull request to develop/staging/main
+# - Manual trigger via workflow_dispatch
+#
+# PERFORMANCE BUDGETS:
+# - Performance Score: ≥ 90
+# - LCP (Largest Contentful Paint): ≤ 2.5s
+# - FCP (First Contentful Paint): ≤ 1.8s
+# - CLS (Cumulative Layout Shift): ≤ 0.1
+# - Bundle Size (JS): ≤ 500KB
+#
+# ============================================================================
+
+name: Performance Check
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - staging
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test'
+        required: false
+        default: 'develop'
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+
+env:
+  NODE_VERSION: '20'
+  BUILD_OUTPUT_PATH: 'dist/angular-release-deployment-frontend/browser'
+
+# ============================================================================
+# JOBS
+# ============================================================================
+
+jobs:
+  # ==========================================================================
+  # JOB 1: BUILD APPLICATION
+  # ==========================================================================
+  build:
+    name: Build Angular App
+    runs-on: ubuntu-latest
+
+    steps:
+      # ----------------------------------------------------------------------
+      # Checkout Code
+      # ----------------------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ----------------------------------------------------------------------
+      # Setup Node.js
+      # ----------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # ----------------------------------------------------------------------
+      # Install Dependencies
+      # ----------------------------------------------------------------------
+      - name: Install dependencies
+        run: npm ci
+
+      # ----------------------------------------------------------------------
+      # Build Application
+      # ----------------------------------------------------------------------
+      - name: Build Angular app
+        run: npm run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+
+      # ----------------------------------------------------------------------
+      # Upload Build Artifact
+      # ----------------------------------------------------------------------
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: ${{ env.BUILD_OUTPUT_PATH }}
+          retention-days: 1
+
+  # ==========================================================================
+  # JOB 2: LIGHTHOUSE CI
+  # ==========================================================================
+  lighthouse:
+    name: Run Lighthouse CI
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      # ----------------------------------------------------------------------
+      # Checkout Code (needed for lighthouserc.json)
+      # ----------------------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ----------------------------------------------------------------------
+      # Download Build Artifact
+      # ----------------------------------------------------------------------
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+          path: ${{ env.BUILD_OUTPUT_PATH }}
+
+      # ----------------------------------------------------------------------
+      # Setup Node.js (needed for http-server and lhci)
+      # ----------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # ----------------------------------------------------------------------
+      # Install Lighthouse CI
+      # ----------------------------------------------------------------------
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli http-server
+
+      # ----------------------------------------------------------------------
+      # Start HTTP Server in Background
+      # ----------------------------------------------------------------------
+      - name: Start HTTP server
+        run: |
+          cd ${{ env.BUILD_OUTPUT_PATH }}
+          http-server -p 4200 -s -c-1 &
+          sleep 5
+          echo "Server started at http://localhost:4200"
+
+      # ----------------------------------------------------------------------
+      # Verify Server is Running
+      # ----------------------------------------------------------------------
+      - name: Verify server is running
+        run: |
+          curl -f http://localhost:4200 || (echo "Server not responding" && exit 1)
+
+      # ----------------------------------------------------------------------
+      # Run Lighthouse CI
+      # ----------------------------------------------------------------------
+      - name: Run Lighthouse CI
+        id: lighthouse-run
+        run: lhci autorun
+        continue-on-error: true
+
+      # ----------------------------------------------------------------------
+      # Upload Lighthouse Reports
+      # ----------------------------------------------------------------------
+      - name: Upload Lighthouse reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 7
+
+      # ----------------------------------------------------------------------
+      # Post PR Comment with Lighthouse Results
+      # ----------------------------------------------------------------------
+      - name: Post Lighthouse results to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Read manifest.json to get Lighthouse results
+            const manifestPath = '.lighthouseci/manifest.json';
+            if (!fs.existsSync(manifestPath)) {
+              console.log('Manifest file not found, skipping PR comment');
+              return;
+            }
+
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+            // Get the median run (Lighthouse runs 3 times and takes median)
+            const lhrPath = manifest[0]?.jsonPath;
+            if (!lhrPath || !fs.existsSync(lhrPath)) {
+              console.log('LHR file not found, skipping PR comment');
+              return;
+            }
+
+            const lhr = JSON.parse(fs.readFileSync(lhrPath, 'utf8'));
+
+            // Extract scores
+            const scores = {
+              performance: Math.round(lhr.categories.performance.score * 100),
+              accessibility: Math.round(lhr.categories.accessibility.score * 100),
+              bestPractices: Math.round(lhr.categories['best-practices'].score * 100),
+              seo: Math.round(lhr.categories.seo.score * 100),
+            };
+
+            // Extract metrics
+            const metrics = {
+              lcp: lhr.audits['largest-contentful-paint'].numericValue,
+              fcp: lhr.audits['first-contentful-paint'].numericValue,
+              cls: lhr.audits['cumulative-layout-shift'].numericValue,
+              tbt: lhr.audits['total-blocking-time'].numericValue,
+              si: lhr.audits['speed-index'].numericValue,
+            };
+
+            // Format milliseconds to seconds
+            const formatMs = (ms) => ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
+
+            // Determine status emoji
+            const getStatusEmoji = (value, threshold, isLower = true) => {
+              return isLower ? (value <= threshold ? '✅' : '❌') : (value >= threshold ? '✅' : '❌');
+            };
+
+            // Check if passed
+            const passed = '${{ steps.lighthouse-run.outcome }}' === 'success';
+            const emoji = passed ? '🎉' : '❌';
+            const title = passed ? 'Lighthouse CI Passed!' : 'Lighthouse CI Failed';
+
+            // Build comment body
+            let body = `## ${emoji} ${title}\n\n`;
+
+            // Scores table
+            body += '### 📊 Performance Scores\n\n';
+            body += '| Category | Score | Status |\n';
+            body += '|----------|-------|--------|\n';
+            body += `| Performance | ${scores.performance} | ${getStatusEmoji(scores.performance, 90, false)} |\n`;
+            body += `| Accessibility | ${scores.accessibility} | ${getStatusEmoji(scores.accessibility, 90, false)} |\n`;
+            body += `| Best Practices | ${scores.bestPractices} | ${getStatusEmoji(scores.bestPractices, 90, false)} |\n`;
+            body += `| SEO | ${scores.seo} | ${getStatusEmoji(scores.seo, 90, false)} |\n\n`;
+
+            // Metrics table
+            body += '### ⚡ Core Web Vitals\n\n';
+            body += '| Metric | Value | Budget | Status |\n';
+            body += '|--------|-------|--------|--------|\n';
+            body += `| LCP (Largest Contentful Paint) | ${formatMs(metrics.lcp)} | ≤2.5s | ${getStatusEmoji(metrics.lcp, 2500)} |\n`;
+            body += `| FCP (First Contentful Paint) | ${formatMs(metrics.fcp)} | ≤1.8s | ${getStatusEmoji(metrics.fcp, 1800)} |\n`;
+            body += `| CLS (Cumulative Layout Shift) | ${metrics.cls.toFixed(3)} | ≤0.1 | ${getStatusEmoji(metrics.cls, 0.1)} |\n`;
+            body += `| TBT (Total Blocking Time) | ${formatMs(metrics.tbt)} | ≤300ms | ${getStatusEmoji(metrics.tbt, 300)} |\n`;
+            body += `| SI (Speed Index) | ${formatMs(metrics.si)} | ≤3.4s | ${getStatusEmoji(metrics.si, 3400)} |\n\n`;
+
+            // Artifact link
+            body += '### 📁 Detailed Reports\n\n';
+            body += `[Download Full Lighthouse Reports](${context.payload.repository.html_url}/actions/runs/${context.runId})\n\n`;
+
+            // Footer
+            body += '---\n';
+            body += '*Lighthouse CI runs 3 times and reports the median result*';
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Lighthouse CI')
+            );
+
+            // Create or update comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      # ----------------------------------------------------------------------
+      # Fail job if Lighthouse failed
+      # ----------------------------------------------------------------------
+      - name: Fail job if Lighthouse assertions failed
+        if: steps.lighthouse-run.outcome == 'failure'
+        run: |
+          echo "❌ Lighthouse CI failed - performance budgets not met"
+          echo "Download the lighthouse-reports artifact to see detailed results"
+          exit 1
+
+  # ==========================================================================
+  # JOB 3: PERFORMANCE SUMMARY
+  # ==========================================================================
+  summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: lighthouse
+    if: always()
+
+    steps:
+      - name: Download Lighthouse reports
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        id: download-artifact
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+
+      - name: Generate summary
+        run: |
+          echo "## 📊 Performance Check Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Lighthouse CI has analyzed your application against performance budgets." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Performance Budgets:" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance Score: ≥ 90" >> $GITHUB_STEP_SUMMARY
+          echo "- LCP: ≤ 2.5s" >> $GITHUB_STEP_SUMMARY
+          echo "- FCP: ≤ 1.8s" >> $GITHUB_STEP_SUMMARY
+          echo "- CLS: ≤ 0.1" >> $GITHUB_STEP_SUMMARY
+          echo "- JS Bundle: ≤ 500KB" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Artifacts:" >> $GITHUB_STEP_SUMMARY
+          echo "- Lighthouse reports uploaded as artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Check the 'lighthouse-reports' artifact for detailed HTML reports" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.lighthouse.result }}" == "success" ]; then
+            echo "✅ **Performance check passed!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Performance check failed!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please review the Lighthouse reports and optimize your application." >> $GITHUB_STEP_SUMMARY
+          fi
+
+# ============================================================================
+# USAGE INSTRUCTIONS
+# ============================================================================
+#
+# AUTOMATIC RUNS:
+# - Create PR to develop/staging/main → Performance check runs automatically
+#
+# MANUAL RUN:
+# 1. Go to: GitHub → Actions → "Performance Check"
+# 2. Click: "Run workflow"
+# 3. Select branch to test
+# 4. Click: "Run workflow"
+#
+# VIEWING RESULTS:
+# 1. Go to PR or workflow run
+# 2. Check "Performance Check" status
+# 3. Download "lighthouse-reports" artifact for detailed HTML reports
+# 4. Open .lighthouseci/lhr-*.html in browser
+#
+# PERFORMANCE BUDGETS EXPLAINED:
+#
+# - Performance Score (0-100):
+#   - 90-100: Green (excellent)
+#   - 50-89: Orange (needs improvement)
+#   - 0-49: Red (poor)
+#
+# - LCP (Largest Contentful Paint):
+#   - < 2.5s: Good
+#   - 2.5s - 4s: Needs Improvement
+#   - > 4s: Poor
+#
+# - FCP (First Contentful Paint):
+#   - < 1.8s: Good
+#   - 1.8s - 3s: Needs Improvement
+#   - > 3s: Poor
+#
+# - CLS (Cumulative Layout Shift):
+#   - < 0.1: Good
+#   - 0.1 - 0.25: Needs Improvement
+#   - > 0.25: Poor
+#
+# COMMON PERFORMANCE ISSUES:
+#
+# 1. Large Bundle Size:
+#    - Use lazy loading for routes
+#    - Import only needed functions from libraries
+#    - Use webpack-bundle-analyzer
+#
+# 2. Slow LCP:
+#    - Optimize images (WebP, compression)
+#    - Preload critical resources
+#    - Use CDN for assets
+#
+# 3. High CLS:
+#    - Set explicit width/height for images
+#    - Reserve space for dynamic content
+#    - Avoid inserting content above existing content
+#
+# 4. Slow FCP:
+#    - Minimize render-blocking resources
+#    - Inline critical CSS
+#    - Defer non-critical JavaScript
+#
+# ============================================================================
