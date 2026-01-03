@@ -13,6 +13,7 @@
     "lint:fix": "ng lint --fix",
     "prepare": "husky",
     "analyze": "ng build --stats-json && node analyze-bundle.mjs",
+    "build:stats": "ng build --stats-json && node build-stats.mjs",
     "//": "─────────────────────────────────────────────────────────────────────",
     "// Deployment Scripts": "For local emergency deployments only",
     "// NOTE": "Production deployments should use GitHub Actions (Phase 5)",
