@@ -30,10 +30,26 @@ on:
 # ─────────────────────────────────────────────────────────────
 # Environment Variables (Global)
 # ─────────────────────────────────────────────────────────────
+# Note: These values are NOT sensitive and are safe to expose:
+# - UNIQUE_ID: Just a bucket naming suffix (publicly visible in URLs anyway)
+# - CLOUDFRONT_DISTRIBUTION_ID: Public identifier (not a credential)
+# - CLOUDFRONT_DOMAIN: Already public (users access this URL)
+#
+# Only AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are kept as secrets.
+#
+# Why not use secrets for these? To maintain consistency throughout the
+# workflow. GitHub Actions environment.url doesn't support expressions,
+# so we must hardcode URLs there. Using env vars everywhere else keeps
+# a single source of truth (this env block) rather than mixing hardcoded
+# values with secrets.
+# ─────────────────────────────────────────────────────────────
 
 env:
   NODE_VERSION: '20.x'
   AWS_REGION: 'us-east-1'
+  UNIQUE_ID: 'shree-1767366539'  # Bucket naming suffix (not sensitive, safe to expose)
+  CLOUDFRONT_DISTRIBUTION_ID: 'E1QKKABZX5LKQQ'  # CloudFront distribution ID (not sensitive)
+  CLOUDFRONT_DOMAIN: 'd29lgch8cdh74n.cloudfront.net'  # CloudFront domain (public anyway)
 
 # ─────────────────────────────────────────────────────────────
 # Jobs
@@ -165,7 +181,7 @@ jobs:
       - name: Deploy to S3
         run: |
           aws s3 sync dist/angular-release-deployment-frontend/browser \
-            s3://angular-deploy-dev-${{ secrets.UNIQUE_ID }} --delete
+            s3://angular-deploy-dev-${{ env.UNIQUE_ID }} --delete
 
         # ═════════════════════════════════════════════════════════════════════
         # Alternative Deployment Approaches (For Reference)
@@ -242,7 +258,7 @@ jobs:
       - name: Deployment summary
         run: |
           echo "✅ Development deployment successful!"
-          echo "🌐 URL: http://angular-deploy-dev-${{ secrets.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
+          echo "🌐 URL: http://angular-deploy-dev-${{ env.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
 
   # ═══════════════════════════════════════════════════════════
   # Job 5: Deploy to QA (Manual Trigger Only)
@@ -282,12 +298,12 @@ jobs:
       - name: Deploy to S3
         run: |
           aws s3 sync dist/angular-release-deployment-frontend/browser \
-            s3://angular-deploy-qa-${{ secrets.UNIQUE_ID }} --delete
+            s3://angular-deploy-qa-${{ env.UNIQUE_ID }} --delete
 
       - name: Deployment summary
         run: |
           echo "✅ QA deployment successful!"
-          echo "🌐 URL: http://angular-deploy-qa-${{ secrets.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
+          echo "🌐 URL: http://angular-deploy-qa-${{ env.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
 
   # ═══════════════════════════════════════════════════════════
   # Job 6: Deploy to Staging
@@ -327,12 +343,12 @@ jobs:
       - name: Deploy to S3
         run: |
           aws s3 sync dist/angular-release-deployment-frontend/browser \
-            s3://angular-deploy-staging-${{ secrets.UNIQUE_ID }} --delete
+            s3://angular-deploy-staging-${{ env.UNIQUE_ID }} --delete
 
       - name: Deployment summary
         run: |
           echo "✅ Staging deployment successful!"
-          echo "🌐 URL: http://angular-deploy-staging-${{ secrets.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
+          echo "🌐 URL: http://angular-deploy-staging-${{ env.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
 
   # ═══════════════════════════════════════════════════════════
   # Job 7: Deploy to Production (With Approval + CloudFront)
@@ -372,12 +388,12 @@ jobs:
       - name: Deploy to S3
         run: |
           aws s3 sync dist/angular-release-deployment-frontend/browser \
-            s3://angular-deploy-prod-${{ secrets.UNIQUE_ID }} --delete
+            s3://angular-deploy-prod-${{ env.UNIQUE_ID }} --delete
 
       - name: Invalidate CloudFront cache
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
             --paths "/*"
 
         # ─────────────────────────────────────────────────────
@@ -397,8 +413,8 @@ jobs:
       - name: Deployment summary
         run: |
           echo "✅ Production deployment successful!"
-          echo "🌐 CloudFront URL: https://${{ secrets.CLOUDFRONT_DOMAIN }}"
-          echo "🌐 S3 Direct URL: http://angular-deploy-prod-${{ secrets.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
+          echo "🌐 CloudFront URL: https://${{ env.CLOUDFRONT_DOMAIN }}"
+          echo "🌐 S3 Direct URL: http://angular-deploy-prod-${{ env.UNIQUE_ID }}.s3-website-us-east-1.amazonaws.com"
           echo "⏱️  CloudFront cache invalidated - fresh content available in 1-2 minutes"
 
   # ═══════════════════════════════════════════════════════════
