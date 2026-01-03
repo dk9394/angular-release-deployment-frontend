@@ -12,6 +12,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,html,scss,css,json}\"",
     "lint:fix": "ng lint --fix",
     "prepare": "husky",
+    "analyze": "ng build --stats-json && webpack-bundle-analyzer dist/angular-release-deployment-frontend/stats.json",
     "//": "─────────────────────────────────────────────────────────────────────",
     "// Deployment Scripts": "For local emergency deployments only",
     "// NOTE": "Production deployments should use GitHub Actions (Phase 5)",
@@ -69,6 +70,7 @@
     "prettier": "^3.7.4",
     "typescript": "~5.9.2",
     "typescript-eslint": "8.47.0",
-    "vitest": "^4.0.8"
+    "vitest": "^4.0.8",
+    "webpack-bundle-analyzer": "^5.1.0"
   }
 }
