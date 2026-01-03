@@ -181,6 +181,125 @@ jobs:
           retention-days: 7
 
       # ----------------------------------------------------------------------
+      # Post PR Comment with Lighthouse Results
+      # ----------------------------------------------------------------------
+      - name: Post Lighthouse results to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Read manifest.json to get Lighthouse results
+            const manifestPath = '.lighthouseci/manifest.json';
+            if (!fs.existsSync(manifestPath)) {
+              console.log('Manifest file not found, skipping PR comment');
+              return;
+            }
+
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+            // Get the median run (Lighthouse runs 3 times and takes median)
+            const lhrPath = manifest[0]?.jsonPath;
+            if (!lhrPath || !fs.existsSync(lhrPath)) {
+              console.log('LHR file not found, skipping PR comment');
+              return;
+            }
+
+            const lhr = JSON.parse(fs.readFileSync(lhrPath, 'utf8'));
+
+            // Extract scores
+            const scores = {
+              performance: Math.round(lhr.categories.performance.score * 100),
+              accessibility: Math.round(lhr.categories.accessibility.score * 100),
+              bestPractices: Math.round(lhr.categories['best-practices'].score * 100),
+              seo: Math.round(lhr.categories.seo.score * 100),
+            };
+
+            // Extract metrics
+            const metrics = {
+              lcp: lhr.audits['largest-contentful-paint'].numericValue,
+              fcp: lhr.audits['first-contentful-paint'].numericValue,
+              cls: lhr.audits['cumulative-layout-shift'].numericValue,
+              tbt: lhr.audits['total-blocking-time'].numericValue,
+              si: lhr.audits['speed-index'].numericValue,
+            };
+
+            // Format milliseconds to seconds
+            const formatMs = (ms) => ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
+
+            // Determine status emoji
+            const getStatusEmoji = (value, threshold, isLower = true) => {
+              return isLower ? (value <= threshold ? '✅' : '❌') : (value >= threshold ? '✅' : '❌');
+            };
+
+            // Check if passed
+            const passed = '${{ steps.lighthouse-run.outcome }}' === 'success';
+            const emoji = passed ? '🎉' : '❌';
+            const title = passed ? 'Lighthouse CI Passed!' : 'Lighthouse CI Failed';
+
+            // Build comment body
+            let body = `## ${emoji} ${title}\n\n`;
+
+            // Scores table
+            body += '### 📊 Performance Scores\n\n';
+            body += '| Category | Score | Status |\n';
+            body += '|----------|-------|--------|\n';
+            body += `| Performance | ${scores.performance} | ${getStatusEmoji(scores.performance, 90, false)} |\n`;
+            body += `| Accessibility | ${scores.accessibility} | ${getStatusEmoji(scores.accessibility, 90, false)} |\n`;
+            body += `| Best Practices | ${scores.bestPractices} | ${getStatusEmoji(scores.bestPractices, 90, false)} |\n`;
+            body += `| SEO | ${scores.seo} | ${getStatusEmoji(scores.seo, 90, false)} |\n\n`;
+
+            // Metrics table
+            body += '### ⚡ Core Web Vitals\n\n';
+            body += '| Metric | Value | Budget | Status |\n';
+            body += '|--------|-------|--------|--------|\n';
+            body += `| LCP (Largest Contentful Paint) | ${formatMs(metrics.lcp)} | ≤2.5s | ${getStatusEmoji(metrics.lcp, 2500)} |\n`;
+            body += `| FCP (First Contentful Paint) | ${formatMs(metrics.fcp)} | ≤1.8s | ${getStatusEmoji(metrics.fcp, 1800)} |\n`;
+            body += `| CLS (Cumulative Layout Shift) | ${metrics.cls.toFixed(3)} | ≤0.1 | ${getStatusEmoji(metrics.cls, 0.1)} |\n`;
+            body += `| TBT (Total Blocking Time) | ${formatMs(metrics.tbt)} | ≤300ms | ${getStatusEmoji(metrics.tbt, 300)} |\n`;
+            body += `| SI (Speed Index) | ${formatMs(metrics.si)} | ≤3.4s | ${getStatusEmoji(metrics.si, 3400)} |\n\n`;
+
+            // Artifact link
+            body += '### 📁 Detailed Reports\n\n';
+            body += `[Download Full Lighthouse Reports](${context.payload.repository.html_url}/actions/runs/${context.runId})\n\n`;
+
+            // Footer
+            body += '---\n';
+            body += '*Lighthouse CI runs 3 times and reports the median result*';
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Lighthouse CI')
+            );
+
+            // Create or update comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      # ----------------------------------------------------------------------
       # Fail job if Lighthouse failed
       # ----------------------------------------------------------------------
       - name: Fail job if Lighthouse assertions failed
