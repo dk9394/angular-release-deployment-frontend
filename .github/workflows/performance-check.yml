@@ -165,8 +165,9 @@ jobs:
       # Run Lighthouse CI
       # ----------------------------------------------------------------------
       - name: Run Lighthouse CI
+        id: lighthouse-run
         run: lhci autorun
-        continue-on-error: false
+        continue-on-error: true
 
       # ----------------------------------------------------------------------
       # Upload Lighthouse Reports
@@ -178,6 +179,16 @@ jobs:
           name: lighthouse-reports
           path: .lighthouseci/
           retention-days: 7
+
+      # ----------------------------------------------------------------------
+      # Fail job if Lighthouse failed
+      # ----------------------------------------------------------------------
+      - name: Fail job if Lighthouse assertions failed
+        if: steps.lighthouse-run.outcome == 'failure'
+        run: |
+          echo "❌ Lighthouse CI failed - performance budgets not met"
+          echo "Download the lighthouse-reports artifact to see detailed results"
+          exit 1
 
   # ==========================================================================
   # JOB 3: PERFORMANCE SUMMARY
@@ -191,6 +202,8 @@ jobs:
     steps:
       - name: Download Lighthouse reports
         uses: actions/download-artifact@v4
+        continue-on-error: true
+        id: download-artifact
         with:
           name: lighthouse-reports
           path: .lighthouseci/
